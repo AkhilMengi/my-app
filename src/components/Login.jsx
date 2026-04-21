@@ -1,19 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { FiSun, FiMoon, FiEye, FiEyeOff, FiBarChart2, FiCpu } from 'react-icons/fi';
+import { HiOutlineLightningBolt } from 'react-icons/hi';
+import credentials from '../data/credentials.json';
 
-export default function Login() {
+export default function Login({ onLoginSuccess, isDark, setIsDark }) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
-    const [isDark, setIsDark] = useState(true);
+    const [error, setError] = useState('');
+    const [rememberMe, setRememberMe] = useState(false);
+
+    useEffect(() => {
+        // Check if already logged in
+        const isLoggedIn = localStorage.getItem('isLoggedIn');
+        if (isLoggedIn) {
+            onLoginSuccess();
+        }
+    }, [onLoginSuccess]);
 
     const handleLogin = (e) => {
         e.preventDefault();
+        setError('');
+
+        if (!email || !password) {
+            setError('Please enter both email and password');
+            return;
+        }
+
         setIsLoading(true);
+
         setTimeout(() => {
-            setIsLoading(false);
-            console.log('Login:', { email, password });
-        }, 2000);
+            const user = credentials.users.find(
+                (u) => u.email === email && u.password === password
+            );
+
+            if (user) {
+                localStorage.setItem('isLoggedIn', 'true');
+                localStorage.setItem('userEmail', email);
+                localStorage.setItem('userName', user.name);
+                if (rememberMe) {
+                    localStorage.setItem('rememberMe', 'true');
+                }
+                console.log('Login successful:', user);
+                setIsLoading(false);
+                onLoginSuccess();
+            } else {
+                setError('Invalid email or password');
+                setIsLoading(false);
+            }
+        }, 1500);
     };
 
     const handleSSO = (provider) => {
@@ -77,7 +113,7 @@ export default function Login() {
                     : 'bg-white/60 border-slate-300/60 hover:bg-white/80 text-slate-700 hover:text-slate-900 hover:shadow-lg hover:shadow-slate-400/20'
                     }`}
             >
-                {isDark ? '🌙' : '☀️'}
+                {isDark ? <FiMoon /> : <FiSun />}
             </button>
 
             {/* MAIN CONTAINER - HEIGHT REDUCED ONLY */}
@@ -110,12 +146,12 @@ export default function Login() {
                         <div className="relative z-10 animate-fade-in">
                             <div className="flex items-center gap-4 mb-8">
                                 <div
-                                    className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg ${isDark
+                                    className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg text-2xl ${isDark
                                         ? 'bg-gradient-to-br from-cyan-400 to-purple-600'
                                         : 'bg-gradient-to-br from-blue-500 to-purple-600'
                                         }`}
                                 >
-                                    ⚡
+                                    <HiOutlineLightningBolt />
                                 </div>
 
                                 <div>
@@ -137,17 +173,17 @@ export default function Login() {
                             <div className="space-y-4">
                                 {[
                                     {
-                                        icon: '⚡',
+                                        icon: <HiOutlineLightningBolt className="text-xl" />,
                                         title: 'Smart Monitoring',
                                         desc: 'Real-time energy tracking',
                                     },
                                     {
-                                        icon: '📊',
+                                        icon: <FiBarChart2 className="text-xl" />,
                                         title: 'Advanced Analytics',
                                         desc: 'Predictive insights',
                                     },
                                     {
-                                        icon: '💡',
+                                        icon: <FiCpu className="text-xl" />,
                                         title: 'AI Optimization',
                                         desc: 'Cost reduction algorithms',
                                     },
@@ -160,7 +196,7 @@ export default function Login() {
                                                 }`}
                                         >
                                             <div className="flex items-center gap-3">
-                                                <span className="text-2xl">{feature.icon}</span>
+                                                <span className="text-2xl text-cyan-400">{feature.icon}</span>
                                                 <div>
                                                     <p
                                                         className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-900'
@@ -207,74 +243,132 @@ export default function Login() {
                             </p>
                         </div>
 
-                        <form onSubmit={handleLogin} className="space-y-2">
-                            {/* Email */}
+                        <form onSubmit={handleLogin} className="space-y-3">
                             <div>
-                                <label
-                                    className={`block text-sm font-semibold mb-2 ${isDark ? 'text-slate-200' : 'text-slate-700'
-                                        }`}
-                                >
+                                <label className={`block text-sm font-semibold mb-2 ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
                                     Email Address
                                 </label>
-
                                 <input
                                     type="email"
                                     placeholder="you@example.com"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className={`w-full px-4 py-3 rounded-xl border outline-none transition-all ${isDark
-                                        ? 'bg-slate-800/50 border-slate-700 text-white placeholder-slate-500 focus:border-cyan-400'
+                                    className={`w-full px-4 py-3 rounded-lg border outline-none transition-all ${isDark
+                                        ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500 focus:border-cyan-400'
                                         : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-blue-500'
                                         }`}
                                 />
                             </div>
 
-                            {/* Password */}
                             <div>
-                                <label
-                                    className={`block text-sm font-semibold mb-2 ${isDark ? 'text-slate-200' : 'text-slate-700'
-                                        }`}
-                                >
+                                <label className={`block text-sm font-semibold mb-2 ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
                                     Password
                                 </label>
-
-                                <input
-                                    type={showPassword ? 'text' : 'password'}
-                                    placeholder="••••••••"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className={`w-full px-4 py-3 rounded-xl border outline-none transition-all ${isDark
-                                        ? 'bg-slate-800/50 border-slate-700 text-white placeholder-slate-500 focus:border-cyan-400'
-                                        : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-blue-500'
-                                        }`}
-                                />
+                                <div className="relative">
+                                    <input
+                                        type={showPassword ? 'text' : 'password'}
+                                        placeholder="••••••••"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        className={`w-full px-4 py-3 rounded-lg border outline-none transition-all pr-11 ${isDark
+                                            ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500 focus:border-cyan-400'
+                                            : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-blue-500'
+                                            }`}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className={`absolute right-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-400 hover:text-slate-300' : 'text-slate-600 hover:text-slate-900'}`}
+                                    >
+                                        {showPassword ? <FiEyeOff /> : <FiEye />}
+                                    </button>
+                                </div>
                             </div>
 
-                            {/* Button */}
+                            <div className="flex items-center justify-between mt-4">
+                                <label className={`flex items-center space-x-2 cursor-pointer ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                    <input
+                                        type="checkbox"
+                                        checked={rememberMe}
+                                        onChange={(e) => setRememberMe(e.target.checked)}
+                                        className="w-4 h-4 rounded"
+                                    />
+                                    <span className="text-sm">Remember me</span>
+                                </label>
+                                <a href="#" className="text-sm text-cyan-400 hover:text-cyan-300 transition-colors">
+                                    Forgot password?
+                                </a>
+                            </div>
+
+                            {error && (
+                                <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm">
+                                    ❌ {error}
+                                </div>
+                            )}
+
                             <button
                                 type="submit"
                                 disabled={isLoading}
-                                className="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-bold"
+                                className={`w-full mt-6 py-3 rounded-lg font-bold transition-all duration-300 text-white ${
+                                    isLoading
+                                        ? 'bg-gradient-to-r from-cyan-500/50 to-purple-600/50 cursor-not-allowed'
+                                        : 'bg-gradient-to-r from-cyan-500 to-purple-600 hover:shadow-lg hover:shadow-cyan-400/50 hover:scale-105'
+                                }`}
                             >
-                                {isLoading ? 'Signing in...' : 'Sign In'}
+                                {isLoading ? (
+                                    <span className="flex items-center justify-center space-x-2">
+                                        <span className="inline-block animate-spin">⏳</span>
+                                        <span>Signing in...</span>
+                                    </span>
+                                ) : (
+                                    '🔐 Sign In'
+                                )}
                             </button>
                         </form>
 
-                        <div className="my-5 text-center text-slate-400 text-sm">
-                            Or continue with
+                        <div className="my-5 text-center text-slate-400 text-sm flex items-center space-x-2">
+                            <div className={`flex-1 h-px ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`}></div>
+                            <span>Or continue with</span>
+                            <div className={`flex-1 h-px ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`}></div>
                         </div>
 
                         <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="w-full  py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-bold"
+                            type="button"
+                            className={`w-full py-3 rounded-lg border font-semibold transition-all duration-300 ${
+                                isDark
+                                    ? 'bg-slate-800/30 border-slate-700 hover:bg-slate-700/50'
+                                    : 'bg-slate-50 border-slate-300 hover:bg-slate-100'
+                            }`}
                         >
-                            {isLoading ? 'Signing in...' : 'Sign In with SSO'}
+                            🔐 Sign In with SSO
                         </button>
 
-                        <div className="text-center mt-6 text-sm text-slate-400">
-                            Don’t have an account?{' '}
-                            <span className="text-cyan-400">Sign up</span>
+                        <div className="text-center mt-6 text-sm">
+                            <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>
+                                Don't have an account?{' '}
+                            </span>
+                            <span className="text-cyan-400 hover:text-cyan-300 cursor-pointer font-semibold transition-colors">
+                                Sign up
+                            </span>
+                        </div>
+
+                        <div className={`mt-6 p-4 rounded-lg border backdrop-blur ${isDark ? 'bg-blue-500/10 border-blue-400/30' : 'bg-blue-50 border-blue-300/50'}`}>
+                            <p className={`text-xs font-bold mb-3 flex items-center space-x-1 ${isDark ? 'text-blue-300' : 'text-blue-600'}`}>
+                                <span>📝</span>
+                                <span>Demo Credentials</span>
+                            </p>
+                            <div className={`space-y-2 text-xs ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                <div className={`p-2 rounded ${isDark ? 'bg-slate-800/40' : 'bg-white/70'}`}>
+                                    <p className="font-semibold">User Account</p>
+                                    <p>📧 user@example.com</p>
+                                    <p>🔑 password123</p>
+                                </div>
+                                <div className={`p-2 rounded ${isDark ? 'bg-slate-800/40' : 'bg-white/70'}`}>
+                                    <p className="font-semibold">Admin Account</p>
+                                    <p>📧 admin@example.com</p>
+                                    <p>🔑 admin123</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
