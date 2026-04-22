@@ -1,5 +1,17 @@
 import { useState, useRef, useEffect } from "react";
-import { FiUploadCloud, FiUsers, FiPieChart, FiActivity, FiUser, FiLogOut, FiSun, FiMoon, FiChevronDown } from "react-icons/fi";
+import {
+  FiUploadCloud,
+  FiUsers,
+  FiPieChart,
+  FiActivity,
+  FiUser,
+  FiLogOut,
+  FiSun,
+  FiMoon,
+  FiChevronDown,
+  FiMenu,
+  FiX,
+} from "react-icons/fi";
 import { HiOutlineLightningBolt } from "react-icons/hi";
 
 /* SCREENS */
@@ -9,11 +21,14 @@ import TariffDistribution from "./TariffDistribution";
 import DataSimulation from "./DataSimulation";
 
 export default function Navbar({ isDark, setIsDark }) {
-  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const [isUserDropdownOpen, setIsUserDropdownOpen] =
+    useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] =
+    useState(false);
+
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
 
-  /* IMPORTANT */
   const [activeComponent, setActiveComponent] =
     useState("DataIngestion");
 
@@ -26,29 +41,35 @@ export default function Navbar({ isDark, setIsDark }) {
       icon: <FiUploadCloud />,
     },
     {
-      label: "Customer Consumption",
+      label: "Consumption",
       component: "CustomerConsumption",
       icon: <FiUsers />,
     },
     {
-      label: "Tariff Distribution",
+      label: "Tariff",
       component: "TariffDistribution",
       icon: <FiPieChart />,
     },
     {
-      label: "Data Simulation",
+      label: "Simulation",
       component: "DataSimulation",
       icon: <FiActivity />,
     },
   ];
 
   useEffect(() => {
-    setUserName(localStorage.getItem("userName") || "Guest User");
-    setUserEmail(localStorage.getItem("userEmail") || "user@email.com");
+    setUserName(
+      localStorage.getItem("userName") ||
+        "Guest User"
+    );
+    setUserEmail(
+      localStorage.getItem("userEmail") ||
+        "user@email.com"
+    );
   }, []);
 
   useEffect(() => {
-    const closeMenu = (e) => {
+    const closeMenus = (e) => {
       if (
         dropdownRef.current &&
         !dropdownRef.current.contains(e.target)
@@ -57,31 +78,61 @@ export default function Navbar({ isDark, setIsDark }) {
       }
     };
 
-    document.addEventListener("mousedown", closeMenu);
+    document.addEventListener(
+      "mousedown",
+      closeMenus
+    );
+
     return () =>
-      document.removeEventListener("mousedown", closeMenu);
+      document.removeEventListener(
+        "mousedown",
+        closeMenus
+      );
   }, []);
 
-  const toggleTheme = () => setIsDark(!isDark);
+  const toggleTheme = () =>
+    setIsDark(!isDark);
 
   const handleLogout = () => {
     localStorage.clear();
     window.location.href = "/";
   };
 
-  /* SCREEN SWITCHER */
+  const changeScreen = (screen) => {
+    setActiveComponent(screen);
+    setIsMobileMenuOpen(false);
+  };
+
   const renderComponent = () => {
     if (activeComponent === "DataIngestion")
       return <DataIngestion isDark={isDark} />;
 
-    if (activeComponent === "CustomerConsumption")
-      return <CustomerConsumption isDark={isDark} />;
+    if (
+      activeComponent ===
+      "CustomerConsumption"
+    )
+      return (
+        <CustomerConsumption
+          isDark={isDark}
+        />
+      );
 
-    if (activeComponent === "TariffDistribution")
-      return <TariffDistribution isDark={isDark} />;
+    if (
+      activeComponent ===
+      "TariffDistribution"
+    )
+      return (
+        <TariffDistribution
+          isDark={isDark}
+        />
+      );
 
-    if (activeComponent === "DataSimulation")
-      return <DataSimulation isDark={isDark} />;
+    if (
+      activeComponent === "DataSimulation"
+    )
+      return (
+        <DataSimulation isDark={isDark} />
+      );
 
     return <DataIngestion isDark={isDark} />;
   };
@@ -89,7 +140,9 @@ export default function Navbar({ isDark, setIsDark }) {
   return (
     <div
       className={`min-h-screen ${
-        isDark ? "bg-slate-950 text-white" : "bg-slate-50"
+        isDark
+          ? "bg-slate-950 text-white"
+          : "bg-slate-50 text-slate-900"
       }`}
     >
       {/* NAVBAR */}
@@ -100,35 +153,40 @@ export default function Navbar({ isDark, setIsDark }) {
             : "bg-white/80 border-slate-200"
         }`}
       >
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="h-[74px] flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
+          <div className="h-[70px] flex items-center justify-between gap-3">
             {/* Logo */}
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white text-lg">
-                <HiOutlineLightningBolt size={20} />
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white shrink-0">
+                <HiOutlineLightningBolt size={18} />
               </div>
 
-              <div>
-                <h1 className="text-xl font-black">
-                  Smart<span className="text-cyan-400">App</span>
+              <div className="hidden sm:block">
+                <h1 className="text-lg md:text-xl font-black leading-none">
+                  Smart
+                  <span className="text-cyan-400">
+                    App
+                  </span>
                 </h1>
-                <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">
+                <p className="text-[9px] uppercase tracking-[0.28em] text-slate-400 mt-1">
                   analytics suite
                 </p>
               </div>
             </div>
 
-            {/* NAV ITEMS */}
+            {/* Desktop Nav */}
             <div className="hidden lg:flex items-center gap-1 px-2 py-1 rounded-2xl border bg-white/5 border-white/10">
               {navItems.map((item) => (
                 <button
                   key={item.label}
-                  type="button"
                   onClick={() =>
-                    setActiveComponent(item.component)
+                    changeScreen(
+                      item.component
+                    )
                   }
                   className={`relative group flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition-all ${
-                    activeComponent === item.component
+                    activeComponent ===
+                    item.component
                       ? "text-cyan-400"
                       : "text-slate-300 hover:text-white"
                   }`}
@@ -138,38 +196,50 @@ export default function Navbar({ isDark, setIsDark }) {
 
                   <span
                     className={`absolute left-3 right-3 -bottom-[2px] h-[2px] rounded-full transition-all duration-300 ${
-                      activeComponent === item.component
+                      activeComponent ===
+                      item.component
                         ? "scale-x-100 bg-gradient-to-r from-cyan-400 to-purple-500"
                         : "scale-x-0 group-hover:scale-x-100 bg-gradient-to-r from-cyan-400 to-purple-500"
                     }`}
-                  ></span>
+                  />
                 </button>
               ))}
             </div>
 
-            {/* RIGHT */}
+            {/* Right */}
             <div className="flex items-center gap-2">
               {/* Theme */}
               <button
                 onClick={toggleTheme}
                 className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center"
               >
-                {isDark ? <FiSun /> : <FiMoon />}
+                {isDark ? (
+                  <FiSun />
+                ) : (
+                  <FiMoon />
+                )}
               </button>
 
               {/* User */}
-              <div className="relative" ref={dropdownRef}>
+              <div
+                className="relative hidden sm:block"
+                ref={dropdownRef}
+              >
                 <button
                   onClick={() =>
-                    setIsUserDropdownOpen(!isUserDropdownOpen)
+                    setIsUserDropdownOpen(
+                      !isUserDropdownOpen
+                    )
                   }
                   className="flex items-center gap-2 px-2 py-1.5 rounded-2xl border bg-white/5 border-white/10"
                 >
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white">
-                    {userName.charAt(0).toUpperCase()}
+                    {userName
+                      .charAt(0)
+                      .toUpperCase()}
                   </div>
 
-                  <div className="hidden sm:block text-left">
+                  <div className="hidden md:block text-left">
                     <p className="text-sm font-semibold">
                       {userName}
                     </p>
@@ -189,7 +259,9 @@ export default function Navbar({ isDark, setIsDark }) {
                     </button>
 
                     <button
-                      onClick={handleLogout}
+                      onClick={
+                        handleLogout
+                      }
                       className="w-full flex items-center gap-3 px-3 py-2 rounded-xl bg-red-500 text-white text-sm mt-1"
                     >
                       <FiLogOut />
@@ -198,13 +270,64 @@ export default function Navbar({ isDark, setIsDark }) {
                   </div>
                 )}
               </div>
+
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() =>
+                  setIsMobileMenuOpen(
+                    !isMobileMenuOpen
+                  )
+                }
+                className="lg:hidden w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center"
+              >
+                {isMobileMenuOpen ? (
+                  <FiX />
+                ) : (
+                  <FiMenu />
+                )}
+              </button>
             </div>
           </div>
+
+          {/* Mobile Nav */}
+          {isMobileMenuOpen && (
+            <div className="lg:hidden pb-4 space-y-2 pt-2">
+              {navItems.map((item) => (
+                <button
+                  key={item.label}
+                  onClick={() =>
+                    changeScreen(
+                      item.component
+                    )
+                  }
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm ${
+                    activeComponent ===
+                    item.component
+                      ? "bg-cyan-500/15 text-cyan-400"
+                      : "bg-white/5"
+                  }`}
+                >
+                  {item.icon}
+                  {item.label}
+                </button>
+              ))}
+
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-red-500 text-white text-sm"
+              >
+                <FiLogOut />
+                Logout
+              </button>
+            </div>
+          )}
         </div>
       </nav>
 
-      {/* PAGE CHANGES HERE */}
-      <main className="p-6">{renderComponent()}</main>
+      {/* Page Content */}
+      <main className="p-2 sm:p-4 md:p-5">
+        {renderComponent()}
+      </main>
     </div>
   );
 }
