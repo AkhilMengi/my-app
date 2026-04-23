@@ -8,7 +8,14 @@ import {
   FiSliders,
   FiActivity,
   FiArrowRight,
+  FiArrowUpRight,
   FiCheckCircle,
+  FiPlus,
+  FiX,
+  FiAlertTriangle,
+  FiInfo,
+  FiCalendar,
+  FiPercent,
 } from "react-icons/fi";
 
 import {
@@ -22,8 +29,20 @@ import {
   Cell,
   AreaChart,
   Area,
-  Legend,
 } from "recharts";
+
+const COMPARE_COLORS = ["#06b6d4", "#10b981", "#f59e0b", "#f43f5e", "#a78bfa"];
+
+const TARIFF_SCORES = {
+  "Basic Saver":    { Savings: 55, Flexibility: 70, Stability: 84, "Peak Use": 60, "Night Use": 52 },
+  "Standard Plus":  { Savings: 62, Flexibility: 75, Stability: 78, "Peak Use": 65, "Night Use": 55 },
+  "Premium Flex":   { Savings: 70, Flexibility: 88, Stability: 72, "Peak Use": 80, "Night Use": 65 },
+  "Industrial Core":{ Savings: 78, Flexibility: 60, Stability: 90, "Peak Use": 85, "Night Use": 45 },
+  "Night Saver":    { Savings: 82, Flexibility: 78, Stability: 68, "Peak Use": 55, "Night Use": 95 },
+  "Green Energy":   { Savings: 65, Flexibility: 72, Stability: 80, "Peak Use": 70, "Night Use": 60 },
+  "SME Growth":     { Savings: 68, Flexibility: 80, Stability: 76, "Peak Use": 75, "Night Use": 58 },
+  "Enterprise Max": { Savings: 50, Flexibility: 92, Stability: 65, "Peak Use": 88, "Night Use": 70 },
+};
 
 export default function TariffSimulator({ isDark = true }) {
   const tariffs = [
@@ -39,94 +58,258 @@ export default function TariffSimulator({ isDark = true }) {
 
   const [usage, setUsage] = useState(450);
   const [currentTariff, setCurrentTariff] = useState("Basic Saver");
-  const [compareTariff, setCompareTariff] = useState("Night Saver");
+  const [compareTariffs, setCompareTariffs] = useState(["Night Saver"]);
 
   const currentRate = tariffs.find((t) => t.name === currentTariff)?.rate || 0;
-  const compareRate = tariffs.find((t) => t.name === compareTariff)?.rate || 0;
   const currentCost = Number((usage * currentRate).toFixed(2));
-  const compareCost = Number((usage * compareRate).toFixed(2));
-  const difference = Number((compareCost - currentCost).toFixed(2));
-  const saving = difference < 0;
+
+  const compareData = compareTariffs.map((name, i) => {
+    const rate = tariffs.find((t) => t.name === name)?.rate || 0;
+    const cost = Number((usage * rate).toFixed(2));
+    const diff = Number((cost - currentCost).toFixed(2));
+    return { name, rate, cost, diff, saving: diff < 0, color: COMPARE_COLORS[i] };
+  });
+
+  const bestCompare = compareData.reduce(
+    (best, c) => c.cost < best.cost ? c : best,
+    compareData[0]
+  );
+
   const recommended = [...tariffs].sort((a, b) => a.rate - b.rate)[0];
+
+  const addComparePlan = () => {
+    if (compareTariffs.length >= 5) return;
+    const available = tariffs.find(
+      (t) => t.name !== currentTariff && !compareTariffs.includes(t.name)
+    );
+    if (available) setCompareTariffs([...compareTariffs, available.name]);
+  };
+
+  const removeComparePlan = (i) => {
+    if (compareTariffs.length <= 1) return;
+    setCompareTariffs(compareTariffs.filter((_, idx) => idx !== i));
+  };
+
+  const updateComparePlan = (i, name) => {
+    const updated = [...compareTariffs];
+    updated[i] = name;
+    setCompareTariffs(updated);
+  };
 
   const chartData = tariffs.map((item) => ({
     name: item.name.split(" ")[0],
     cost: Number((usage * item.rate).toFixed(0)),
-    active: item.name === currentTariff || item.name === compareTariff,
+    isCurrentPlan: item.name === currentTariff,
+    isComparePlan: compareTariffs.includes(item.name),
+    compareIndex: compareTariffs.indexOf(item.name),
   }));
 
-  const annualSavingsData = [
-    "Jan","Feb","Mar","Apr","May","Jun",
-    "Jul","Aug","Sep","Oct","Nov","Dec",
-  ].map((month, index) => ({
-    month,
-    value: Number((Math.abs(difference) * (index + 1)).toFixed(2)),
-  }));
+  const METRICS = ["Savings", "Flexibility", "Stability", "Peak Use", "Night Use"];
+  const performanceData = METRICS.map((metric) => {
+    const point = { metric, current: TARIFF_SCORES[currentTariff]?.[metric] || 70 };
+    compareTariffs.forEach((name, i) => {
+      point[`compare_${i}`] = TARIFF_SCORES[name]?.[metric] || 70;
+    });
+    return point;
+  });
 
-  const yearlyTotal = annualSavingsData[11].value;
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const annualData = MONTHS.map((month, i) => {
+    const point = { month };
+    compareData.forEach((c) => {
+      point[c.name] = Number((Math.abs(c.diff) * (i + 1)).toFixed(2));
+    });
+    return point;
+  });
+
+  const [showModal, setShowModal] = useState(false);
+
+  const SwitchModal = () => {
+    const isSaving = bestCompare.saving;
+    const annualAmount = annualData[11]?.[bestCompare.name] ?? 0;
+    const monthlyDiff = Math.abs(bestCompare.diff);
+    const currentScore = TARIFF_SCORES[currentTariff] || {};
+    const compareScore = TARIFF_SCORES[bestCompare.name] || {};
+    const betterMetrics = Object.keys(currentScore).filter((m) => (compareScore[m] || 0) > (currentScore[m] || 0));
+    const worseMetrics = Object.keys(currentScore).filter((m) => (compareScore[m] || 0) < (currentScore[m] || 0));
+
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: "rgba(6,11,24,0.85)", backdropFilter: "blur(8px)" }}
+        onClick={() => setShowModal(false)}
+      >
+        <div
+          className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-[#0c1524] shadow-[0_24px_80px_rgba(0,0,0,0.7)] overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Modal gradient top bar */}
+          <div
+            className="h-1.5 w-full"
+            style={{
+              background: isSaving
+                ? "linear-gradient(90deg,#10b981,#06b6d4)"
+                : "linear-gradient(90deg,#ef4444,#f97316)",
+            }}
+          />
+
+          <div className="p-6">
+            {/* Header */}
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div
+                  className="p-3 rounded-2xl"
+                  style={{
+                    background: isSaving ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)",
+                    color: isSaving ? "#10b981" : "#ef4444",
+                  }}
+                >
+                  {isSaving ? <FiTrendingDown size={22} /> : <FiAlertTriangle size={22} />}
+                </div>
+                <div>
+                  <h2 className="text-lg font-extrabold text-white">
+                    {isSaving ? "Why Switch to " + bestCompare.name + "?" : "Why Review Your Plans?"}
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {isSaving
+                      ? `Compared against your current ${currentTariff} plan`
+                      : `${bestCompare.name} costs more — here's what to consider`}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowModal(false)}
+                className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <FiX size={18} />
+              </button>
+            </div>
+
+            {/* Key Numbers */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="rounded-2xl border border-white/8 bg-white/3 p-4 text-center">
+                <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Monthly</p>
+                <p
+                  className="text-2xl font-extrabold"
+                  style={{ color: isSaving ? "#10b981" : "#ef4444" }}
+                >
+                  {isSaving ? "-" : "+"}${monthlyDiff}
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">{isSaving ? "saving" : "extra cost"}</p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/3 p-4 text-center">
+                <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Annually</p>
+                <p
+                  className="text-2xl font-extrabold"
+                  style={{ color: isSaving ? "#10b981" : "#ef4444" }}
+                >
+                  {isSaving ? "-" : "+"}${annualAmount}
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">{isSaving ? "saved" : "extra"}</p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/3 p-4 text-center">
+                <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Rate</p>
+                <p className="text-2xl font-extrabold text-white">${bestCompare.rate}</p>
+                <p className="text-xs text-slate-500 mt-0.5">per kWh</p>
+              </div>
+            </div>
+
+            {/* Reasons list */}
+            <div className="space-y-3 mb-6">
+              {isSaving ? (
+                <>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Reasons to Switch</p>
+                  <Reason icon={<FiDollarSign size={14} />} color="#10b981">
+                    Save <strong className="text-white">${monthlyDiff}/month</strong> — that's{" "}
+                    <strong className="text-white">${annualAmount}/year</strong> back in your pocket.
+                  </Reason>
+                  <Reason icon={<FiPercent size={14} />} color="#06b6d4">
+                    Lower rate of <strong className="text-white">${bestCompare.rate}/kWh</strong> vs your current{" "}
+                    <strong className="text-white">${currentRate}/kWh</strong> — a{" "}
+                    <strong className="text-white">
+                      {(((currentRate - bestCompare.rate) / currentRate) * 100).toFixed(1)}% reduction
+                    </strong>.
+                  </Reason>
+                  {betterMetrics.length > 0 && (
+                    <Reason icon={<FiArrowUpRight size={14} />} color="#a78bfa">
+                      Scores higher on{" "}
+                      <strong className="text-white">{betterMetrics.join(", ")}</strong> — better suited to your usage profile.
+                    </Reason>
+                  )}
+                  <Reason icon={<FiCalendar size={14} />} color="#f59e0b">
+                    Break-even is <strong className="text-white">immediate</strong> — savings start from day one with no lock-in penalty assumed.
+                  </Reason>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Things to Consider</p>
+                  <Reason icon={<FiAlertTriangle size={14} />} color="#ef4444">
+                    <strong className="text-white">{bestCompare.name}</strong> costs{" "}
+                    <strong className="text-red-400">${monthlyDiff}/month more</strong> than your current plan.
+                  </Reason>
+                  <Reason icon={<FiInfo size={14} />} color="#f59e0b">
+                    Your current <strong className="text-white">{currentTariff}</strong> at{" "}
+                    <strong className="text-white">${currentRate}/kWh</strong> may already be a strong deal — review if you need the features of the pricier plan.
+                  </Reason>
+                  {worseMetrics.length > 0 && (
+                    <Reason icon={<FiBarChart2 size={14} />} color="#a78bfa">
+                      <strong className="text-white">{bestCompare.name}</strong> scores higher on{" "}
+                      <strong className="text-white">{worseMetrics.join(", ")}</strong> — consider if those matter for your consumption pattern.
+                    </Reason>
+                  )}
+                  <Reason icon={<FiCalendar size={14} />} color="#64748b">
+                    Over a year you'd pay an extra{" "}
+                    <strong className="text-red-400">${annualAmount}</strong>. Only switch if the plan's features justify the premium.
+                  </Reason>
+                </>
+              )}
+            </div>
+
+            {/* CTA */}
+            <button
+              onClick={() => setShowModal(false)}
+              className="w-full py-3 rounded-2xl text-sm font-bold transition-all hover:scale-[1.02]"
+              style={{
+                background: isSaving
+                  ? "linear-gradient(135deg,#10b981,#06b6d4)"
+                  : "linear-gradient(135deg,#ef4444,#f97316)",
+                color: "#fff",
+              }}
+            >
+              {isSaving ? "Got it — I'll make the switch" : "Understood — I'll review my options"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const Reason = ({ icon, color, children }) => (
+    <div className="flex items-start gap-3 rounded-xl border border-white/6 bg-white/3 px-4 py-3">
+      <div className="mt-0.5 shrink-0" style={{ color }}>{icon}</div>
+      <p className="text-sm text-slate-300 leading-relaxed">{children}</p>
+    </div>
+  );
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
         <div className="px-4 py-3 rounded-2xl border bg-slate-900 border-white/10 text-white shadow-2xl">
           <p className="text-xs text-cyan-400 uppercase font-semibold tracking-wider">{label}</p>
-          <p className="text-lg font-bold mt-1">${payload[0].value}</p>
+          {payload.map((entry, i) => (
+            <p key={i} className="text-sm font-bold mt-1" style={{ color: entry.color || entry.fill }}>
+              {entry.name ? `${entry.name}: ` : ""}${entry.value}
+            </p>
+          ))}
         </div>
       );
     }
     return null;
   };
 
-  const performanceData = [
-    { metric: "Savings",    current: 55, compare: 82 },
-    { metric: "Flexibility", current: 70, compare: 78 },
-    { metric: "Stability",  current: 84, compare: 68 },
-    { metric: "Peak Use",   current: 60, compare: 88 },
-    { metric: "Night Use",  current: 52, compare: 92 },
-  ];
-
-  const kpiCards = [
-    {
-      title: "Current Bill",
-      value: `$${currentCost}`,
-      sub: `@ $${currentRate}/kWh`,
-      icon: <FiDollarSign size={18} />,
-      gradient: "from-violet-500/20 to-purple-500/10",
-      iconBg: "bg-violet-500/20 text-violet-400",
-      border: "border-violet-500/20",
-    },
-    {
-      title: "Compared Bill",
-      value: `$${compareCost}`,
-      sub: `@ $${compareRate}/kWh`,
-      icon: <FiBarChart2 size={18} />,
-      gradient: "from-cyan-500/20 to-blue-500/10",
-      iconBg: "bg-cyan-500/20 text-cyan-400",
-      border: "border-cyan-500/20",
-    },
-    {
-      title: "Monthly Difference",
-      value: `${saving ? "-" : "+"}$${Math.abs(difference)}`,
-      sub: saving ? "potential saving" : "extra cost",
-      icon: saving ? <FiTrendingDown size={18} /> : <FiTrendingUp size={18} />,
-      gradient: saving ? "from-emerald-500/20 to-green-500/10" : "from-red-500/20 to-rose-500/10",
-      iconBg: saving ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400",
-      border: saving ? "border-emerald-500/20" : "border-red-500/20",
-    },
-    {
-      title: "Best Tariff",
-      value: recommended.name,
-      sub: `$${recommended.rate}/kWh lowest rate`,
-      icon: <FiZap size={18} />,
-      gradient: "from-amber-500/20 to-orange-500/10",
-      iconBg: "bg-amber-500/20 text-amber-400",
-      border: "border-amber-500/20",
-    },
-  ];
-
   return (
     <div className="min-h-screen bg-[#060B18] text-white" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
-     
+      {showModal && <SwitchModal />}
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
@@ -168,6 +351,7 @@ export default function TariffSimulator({ isDark = true }) {
             <span className="text-sm font-semibold text-slate-300">Simulation Parameters</span>
           </div>
           <div className="grid sm:grid-cols-3 gap-4">
+            {/* Usage */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                 Monthly Usage (kWh)
@@ -181,58 +365,44 @@ export default function TariffSimulator({ isDark = true }) {
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-medium">kWh</span>
               </div>
-             <div className="mt-2">
-  {/* Top Values */}
-  
-
-  {/* Slider */}
-  <input
-    type="range"
-    min={0}
-    max={2000}
-    value={usage}
-    onChange={(e) =>
-      setUsage(
-        Number(
-          e.target.value
-        )
-      )
-    }
-    className="w-full h-2 rounded-full appearance-none cursor-pointer bg-transparent
-    [&::-webkit-slider-runnable-track]:h-2
-    [&::-webkit-slider-runnable-track]:rounded-full
-    [&::-webkit-slider-runnable-track]:bg-gradient-to-r
-    [&::-webkit-slider-runnable-track]:from-cyan-500/70
-    [&::-webkit-slider-runnable-track]:to-purple-600/70
-
-    [&::-webkit-slider-thumb]:appearance-none
-    [&::-webkit-slider-thumb]:h-5
-    [&::-webkit-slider-thumb]:w-5
-    [&::-webkit-slider-thumb]:rounded-full
-    [&::-webkit-slider-thumb]:bg-white
-    [&::-webkit-slider-thumb]:border-4
-    [&::-webkit-slider-thumb]:border-cyan-500
-    [&::-webkit-slider-thumb]:shadow-lg
-    [&::-webkit-slider-thumb]:mt-[-6px]
-
-    [&::-moz-range-track]:h-2
-    [&::-moz-range-track]:rounded-full
-    [&::-moz-range-track]:bg-gradient-to-r
-    [&::-moz-range-track]:from-cyan-500/70
-    [&::-moz-range-track]:to-purple-600/70
-
-    [&::-moz-range-thumb]:h-5
-    [&::-moz-range-thumb]:w-5
-    [&::-moz-range-thumb]:rounded-full
-    [&::-moz-range-thumb]:bg-white
-    [&::-moz-range-thumb]:border-4
-    [&::-moz-range-thumb]:border-cyan-500"
-  />
-
- 
-</div>
+              <div className="mt-2">
+                <input
+                  type="range"
+                  min={0}
+                  max={2000}
+                  value={usage}
+                  onChange={(e) => setUsage(Number(e.target.value))}
+                  className="w-full h-2 rounded-full appearance-none cursor-pointer bg-transparent
+                    [&::-webkit-slider-runnable-track]:h-2
+                    [&::-webkit-slider-runnable-track]:rounded-full
+                    [&::-webkit-slider-runnable-track]:bg-gradient-to-r
+                    [&::-webkit-slider-runnable-track]:from-cyan-500/70
+                    [&::-webkit-slider-runnable-track]:to-purple-600/70
+                    [&::-webkit-slider-thumb]:appearance-none
+                    [&::-webkit-slider-thumb]:h-5
+                    [&::-webkit-slider-thumb]:w-5
+                    [&::-webkit-slider-thumb]:rounded-full
+                    [&::-webkit-slider-thumb]:bg-white
+                    [&::-webkit-slider-thumb]:border-4
+                    [&::-webkit-slider-thumb]:border-cyan-500
+                    [&::-webkit-slider-thumb]:shadow-lg
+                    [&::-webkit-slider-thumb]:mt-[-6px]
+                    [&::-moz-range-track]:h-2
+                    [&::-moz-range-track]:rounded-full
+                    [&::-moz-range-track]:bg-gradient-to-r
+                    [&::-moz-range-track]:from-cyan-500/70
+                    [&::-moz-range-track]:to-purple-600/70
+                    [&::-moz-range-thumb]:h-5
+                    [&::-moz-range-thumb]:w-5
+                    [&::-moz-range-thumb]:rounded-full
+                    [&::-moz-range-thumb]:bg-white
+                    [&::-moz-range-thumb]:border-4
+                    [&::-moz-range-thumb]:border-cyan-500"
+                />
+              </div>
             </div>
 
+            {/* Current Plan */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                 Current Plan
@@ -245,55 +415,142 @@ export default function TariffSimulator({ isDark = true }) {
                   className="w-full pl-7 pr-4 py-3 rounded-xl border border-white/10 bg-slate-900/60 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all appearance-none cursor-pointer"
                 >
                   {tariffs.map((t) => (
-                    <option key={t.name} value={t.name} className="bg-slate-900">
-                      {t.name}
-                    </option>
+                    <option key={t.name} value={t.name} className="bg-slate-900">{t.name}</option>
                   ))}
                 </select>
               </div>
               <p className="text-xs text-slate-500">Rate: <span className="text-violet-400 font-semibold">${currentRate}/kWh</span></p>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-                Compare Plan
-              </label>
-              <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-cyan-400" />
-                <select
-                  value={compareTariff}
-                  onChange={(e) => setCompareTariff(e.target.value)}
-                  className="w-full pl-7 pr-4 py-3 rounded-xl border border-white/10 bg-slate-900/60 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all appearance-none cursor-pointer"
-                >
-                  {tariffs.map((t) => (
-                    <option key={t.name} value={t.name} className="bg-slate-900">
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
+            {/* Compare Plans */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+                  Compare Plans
+                </label>
+                {compareTariffs.length < 5 && (
+                  <button
+                    onClick={addComparePlan}
+                    className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 transition-colors px-2 py-1 rounded-lg hover:bg-cyan-500/10"
+                  >
+                    <FiPlus size={12} /> Add Plan
+                  </button>
+                )}
               </div>
-              <p className="text-xs text-slate-500">Rate: <span className="text-cyan-400 font-semibold">${compareRate}/kWh</span></p>
+              <div className="flex flex-col gap-2 max-h-52 overflow-y-auto pr-0.5">
+                {compareTariffs.map((name, i) => {
+                  const rate = tariffs.find((t) => t.name === name)?.rate || 0;
+                  return (
+                    <div key={i} className="flex flex-col gap-0.5">
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <div
+                            className="absolute left-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full"
+                            style={{ backgroundColor: COMPARE_COLORS[i] }}
+                          />
+                          <select
+                            value={name}
+                            onChange={(e) => updateComparePlan(i, e.target.value)}
+                            className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-white/10 bg-slate-900/60 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all appearance-none cursor-pointer text-sm"
+                          >
+                            {tariffs.map((t) => (
+                              <option key={t.name} value={t.name} className="bg-slate-900">{t.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        {compareTariffs.length > 1 && (
+                          <button
+                            onClick={() => removeComparePlan(i)}
+                            className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+                          >
+                            <FiX size={14} />
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 pl-1">
+                        Rate:{" "}
+                        <span className="font-semibold" style={{ color: COMPARE_COLORS[i] }}>
+                          ${rate}/kWh
+                        </span>
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
 
         {/* KPI Cards */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {kpiCards.map(({ title, value, sub, icon, gradient, iconBg, border }, i) => (
-            <div
-              key={i}
-              className={`relative rounded-2xl border ${border} bg-gradient-to-br ${gradient} backdrop-blur-xl p-5 overflow-hidden group hover:scale-[1.02] transition-transform duration-200`}
-            >
-              <div className="absolute inset-0 bg-white/[0.02] opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="flex items-start justify-between mb-3">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{title}</p>
-                <div className={`p-2 rounded-lg ${iconBg}`}>{icon}</div>
-              </div>
-              <p className="text-2xl font-extrabold text-white tracking-tight">{value}</p>
-              <p className="text-xs text-slate-500 mt-1">{sub}</p>
+          {/* Current Bill */}
+          <div className="relative rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/20 to-purple-500/10 backdrop-blur-xl p-5 overflow-hidden group hover:scale-[1.02] transition-transform duration-200">
+            <div className="flex items-start justify-between mb-3">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Current Bill</p>
+              <div className="p-2 rounded-lg bg-violet-500/20 text-violet-400"><FiDollarSign size={18} /></div>
             </div>
-          ))}
+            <p className="text-2xl font-extrabold text-white tracking-tight">${currentCost}</p>
+            <p className="text-xs text-slate-500 mt-1">@ ${currentRate}/kWh</p>
+          </div>
+
+          {/* Best Compare */}
+          <div className="relative rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/20 to-blue-500/10 backdrop-blur-xl p-5 overflow-hidden group hover:scale-[1.02] transition-transform duration-200">
+            <div className="flex items-start justify-between mb-3">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                {compareData.length === 1 ? "Compared Bill" : "Best Compare"}
+              </p>
+              <div className="p-2 rounded-lg bg-cyan-500/20 text-cyan-400"><FiBarChart2 size={18} /></div>
+            </div>
+            <p className="text-2xl font-extrabold text-white tracking-tight">${bestCompare.cost}</p>
+            <p className="text-xs text-slate-500 mt-1 truncate">
+              {compareData.length === 1 ? `@ $${bestCompare.rate}/kWh` : bestCompare.name}
+            </p>
+          </div>
+
+          {/* Best Saving */}
+          <div className={`relative rounded-2xl border backdrop-blur-xl p-5 overflow-hidden group hover:scale-[1.02] transition-transform duration-200 ${bestCompare.saving ? "border-emerald-500/20 bg-gradient-to-br from-emerald-500/20 to-green-500/10" : "border-red-500/20 bg-gradient-to-br from-red-500/20 to-rose-500/10"}`}>
+            <div className="flex items-start justify-between mb-3">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                {compareData.length === 1 ? "Monthly Difference" : "Best Saving"}
+              </p>
+              <div className={`p-2 rounded-lg ${bestCompare.saving ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>
+                {bestCompare.saving ? <FiTrendingDown size={18} /> : <FiTrendingUp size={18} />}
+              </div>
+            </div>
+            <p className={`text-2xl font-extrabold tracking-tight ${bestCompare.saving ? "text-emerald-400" : "text-red-400"}`}>
+              {bestCompare.saving ? "-" : "+"}${Math.abs(bestCompare.diff)}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">{bestCompare.saving ? "potential saving/mo" : "extra cost/mo"}</p>
+          </div>
+
+          {/* Best Tariff */}
+          <div className="relative rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/20 to-orange-500/10 backdrop-blur-xl p-5 overflow-hidden group hover:scale-[1.02] transition-transform duration-200">
+            <div className="flex items-start justify-between mb-3">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Best Tariff</p>
+              <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400"><FiZap size={18} /></div>
+            </div>
+            <p className="text-2xl font-extrabold text-white tracking-tight truncate">{recommended.name}</p>
+            <p className="text-xs text-slate-500 mt-1">${recommended.rate}/kWh lowest rate</p>
+          </div>
         </div>
+
+        {/* Multi-plan summary strip (visible only with 2+ compare plans) */}
+        {compareData.length > 1 && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {compareData.map((c, i) => (
+              <div key={i} className="rounded-xl border border-white/8 bg-white/3 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
+                  <p className="text-xs font-semibold text-slate-300 truncate">{c.name}</p>
+                </div>
+                <p className="text-xl font-bold text-white">${c.cost}</p>
+                <p className={`text-xs mt-1 ${c.saving ? "text-emerald-400" : "text-red-400"}`}>
+                  {c.saving ? "▼" : "▲"} ${Math.abs(c.diff)}/mo
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Monthly Comparison Chart */}
         <div className="rounded-2xl border border-white/8 bg-white/3 backdrop-blur-xl p-6 shadow-[0_4px_40px_rgba(0,0,0,0.4)]">
@@ -302,37 +559,35 @@ export default function TariffSimulator({ isDark = true }) {
               <h2 className="text-lg font-bold text-white">Monthly Cost Comparison</h2>
               <p className="text-xs text-slate-500 mt-0.5">All plans at {usage} kWh usage</p>
             </div>
-            <div className="flex items-center gap-4 text-xs text-slate-400">
+            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-cyan-500 inline-block" /> Selected plans
+                <span className="w-3 h-3 rounded bg-violet-500 inline-block" /> {currentTariff}
               </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-violet-500 inline-block" /> Other plans
-              </span>
+              {compareTariffs.map((name, i) => (
+                <span key={i} className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded inline-block" style={{ backgroundColor: COMPARE_COLORS[i] }} /> {name}
+                </span>
+              ))}
             </div>
           </div>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData} barGap={4}>
               <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" vertical={false} />
-              <XAxis
-                dataKey="name"
-                tick={{ fill: "#94a3b8", fontSize: 12 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fill: "#94a3b8", fontSize: 12 }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => `$${v}`}
-              />
+              <XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
               <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
               <Bar dataKey="cost" radius={[6, 6, 0, 0]} maxBarSize={48}>
                 {chartData.map((item, i) => (
                   <Cell
                     key={i}
-                    fill={item.active ? "#06b6d4" : "#8b5cf6"}
-                    fillOpacity={item.active ? 1 : 0.55}
+                    fill={
+                      item.isCurrentPlan
+                        ? "#8b5cf6"
+                        : item.isComparePlan
+                        ? COMPARE_COLORS[item.compareIndex]
+                        : "#4b5563"
+                    }
+                    fillOpacity={item.isCurrentPlan || item.isComparePlan ? 1 : 0.4}
                   />
                 ))}
               </Bar>
@@ -344,28 +599,32 @@ export default function TariffSimulator({ isDark = true }) {
         <div className="grid lg:grid-cols-2 gap-5">
           {/* Performance Matrix */}
           <div className="rounded-2xl border border-white/8 bg-white/3 backdrop-blur-xl p-6 shadow-[0_4px_40px_rgba(0,0,0,0.4)]">
-            <div className="mb-5">
+            <div className="mb-4">
               <h2 className="text-lg font-bold text-white">Plan Performance Matrix</h2>
               <p className="text-xs text-slate-500 mt-0.5">Side-by-side scoring across key metrics</p>
             </div>
-            <div className="flex items-center gap-4 mb-4 text-xs text-slate-400">
+            <div className="flex flex-wrap items-center gap-3 mb-4 text-xs text-slate-400">
               <span className="flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded bg-violet-500 inline-block" />
-                <span className="truncate max-w-[100px]">{currentTariff}</span>
+                <span className="truncate max-w-[80px]">{currentTariff}</span>
               </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-cyan-500 inline-block" />
-                <span className="truncate max-w-[100px]">{compareTariff}</span>
-              </span>
+              {compareTariffs.map((name, i) => (
+                <span key={i} className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded inline-block" style={{ backgroundColor: COMPARE_COLORS[i] }} />
+                  <span className="truncate max-w-[80px]">{name}</span>
+                </span>
+              ))}
             </div>
             <ResponsiveContainer width="100%" height={270}>
-              <BarChart layout="vertical" data={performanceData} margin={{ top: 0, right: 16, left: 8, bottom: 0 }} barGap={4}>
+              <BarChart layout="vertical" data={performanceData} margin={{ top: 0, right: 16, left: 8, bottom: 0 }} barGap={3}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" horizontal={false} />
                 <XAxis type="number" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} />
                 <YAxis type="category" dataKey="metric" width={80} tick={{ fill: "#94a3b8", fontSize: 12 }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, color: "#fff" }} />
-                <Bar dataKey="current" fill="#8b5cf6" fillOpacity={0.85} radius={[0, 6, 6, 0]} maxBarSize={16} name={currentTariff} />
-                <Bar dataKey="compare" fill="#06b6d4" fillOpacity={0.85} radius={[0, 6, 6, 0]} maxBarSize={16} name={compareTariff} />
+                <Bar dataKey="current" fill="#8b5cf6" fillOpacity={0.85} radius={[0, 6, 6, 0]} maxBarSize={14} name={currentTariff} />
+                {compareTariffs.map((name, i) => (
+                  <Bar key={i} dataKey={`compare_${i}`} fill={COMPARE_COLORS[i]} fillOpacity={0.85} radius={[0, 6, 6, 0]} maxBarSize={14} name={name} />
+                ))}
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -374,39 +633,43 @@ export default function TariffSimulator({ isDark = true }) {
           <div className="rounded-2xl border border-white/8 bg-white/3 backdrop-blur-xl p-6 shadow-[0_4px_40px_rgba(0,0,0,0.4)]">
             <div className="flex items-start justify-between mb-6">
               <div>
-                <h2 className="text-lg font-bold text-white">
-                  {saving ? "Annual Savings Projection" : "Annual Extra Cost"}
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">Cumulative month-over-month</p>
+                <h2 className="text-lg font-bold text-white">Annual Projection</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Cumulative monthly difference vs current plan</p>
               </div>
               <div className="text-right pl-4">
-                <p className="text-xs text-slate-500 mb-0.5">Year-end total</p>
-                <p className={`text-2xl font-extrabold ${saving ? "text-emerald-400" : "text-red-400"}`}>
-                  ${yearlyTotal}
+                <p className="text-xs text-slate-500 mb-0.5">Best year-end</p>
+                <p className={`text-2xl font-extrabold ${bestCompare.saving ? "text-emerald-400" : "text-red-400"}`}>
+                  ${annualData[11]?.[bestCompare.name] ?? 0}
                 </p>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={270}>
-              <AreaChart data={annualSavingsData}>
+              <AreaChart data={annualData}>
                 <defs>
-                  <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={saving ? "#10b981" : "#ef4444"} stopOpacity={0.5} />
-                    <stop offset="100%" stopColor={saving ? "#10b981" : "#ef4444"} stopOpacity={0} />
-                  </linearGradient>
+                  {compareData.map((c, i) => (
+                    <linearGradient key={i} id={`areaFill_${i}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={c.color} stopOpacity={0.4} />
+                      <stop offset="100%" stopColor={c.color} stopOpacity={0} />
+                    </linearGradient>
+                  ))}
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" vertical={false} />
                 <XAxis dataKey="month" tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
                 <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, color: "#fff" }} />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke={saving ? "#10b981" : "#ef4444"}
-                  strokeWidth={2.5}
-                  fill="url(#areaFill)"
-                  dot={false}
-                  activeDot={{ r: 5, strokeWidth: 0 }}
-                />
+                {compareData.map((c, i) => (
+                  <Area
+                    key={i}
+                    type="monotone"
+                    dataKey={c.name}
+                    stroke={c.color}
+                    strokeWidth={2.5}
+                    fill={`url(#areaFill_${i})`}
+                    dot={false}
+                    activeDot={{ r: 5, strokeWidth: 0 }}
+                    name={c.name}
+                  />
+                ))}
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -415,37 +678,46 @@ export default function TariffSimulator({ isDark = true }) {
         {/* Insight Banner */}
         <div
           className="rounded-2xl p-px shadow-[0_4px_40px_rgba(0,0,0,0.4)]"
-          style={{ background: saving ? "linear-gradient(135deg,#10b981,#06b6d4)" : "linear-gradient(135deg,#ef4444,#f97316)" }}
+          style={{ background: bestCompare.saving ? "linear-gradient(135deg,#10b981,#06b6d4)" : "linear-gradient(135deg,#ef4444,#f97316)" }}
         >
           <div className="rounded-[calc(1rem-1px)] bg-[#060B18] px-6 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-start gap-4">
-              <div className={`p-2.5 rounded-xl mt-0.5 shrink-0 ${saving ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
+              <div className={`p-2.5 rounded-xl mt-0.5 shrink-0 ${bestCompare.saving ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
                 <FiCheckCircle size={20} />
               </div>
               <div>
                 <p className="text-sm font-bold text-white">Comparison Insight</p>
                 <p className="text-sm text-slate-400 mt-1 leading-relaxed">
-                  Switching from{" "}
-                  <span className="font-semibold text-white">{currentTariff}</span>
-                  {" "}to{" "}
-                  <span className={`font-semibold ${saving ? "text-emerald-400" : "text-red-400"}`}>{compareTariff}</span>
-                  {" "}would{" "}
-                  <span className={`font-semibold ${saving ? "text-emerald-400" : "text-red-400"}`}>
-                    {saving ? "save" : "cost"} you ${Math.abs(difference)}/month
-                  </span>
-                  , totalling{" "}
-                  <span className="font-semibold text-white">${yearlyTotal}</span> over a year.
+                  {compareData.length === 1 ? (
+                    <>
+                      Switching from <span className="font-semibold text-white">{currentTariff}</span> to{" "}
+                      <span className="font-semibold" style={{ color: bestCompare.color }}>{bestCompare.name}</span> would{" "}
+                      <span className="font-semibold" style={{ color: bestCompare.color }}>
+                        {bestCompare.saving ? "save" : "cost"} you ${Math.abs(bestCompare.diff)}/month
+                      </span>
+                      , totalling <span className="font-semibold text-white">${annualData[11]?.[bestCompare.name] ?? 0}</span> over a year.
+                    </>
+                  ) : (
+                    <>
+                      Best option among <span className="font-semibold text-white">{compareData.length} compared plans</span> is{" "}
+                      <span className="font-semibold" style={{ color: bestCompare.color }}>{bestCompare.name}</span>{" "}
+                      ({bestCompare.saving ? "saves" : "costs extra"}{" "}
+                      <span className="font-semibold" style={{ color: bestCompare.color }}>${Math.abs(bestCompare.diff)}/month</span>).{" "}
+                      Yearly total: <span className="font-semibold text-white">${annualData[11]?.[bestCompare.name] ?? 0}</span>.
+                    </>
+                  )}
                 </p>
               </div>
             </div>
             <button
+              onClick={() => setShowModal(true)}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all hover:scale-[1.03] shrink-0 ${
-                saving
+                bestCompare.saving
                   ? "bg-emerald-500 hover:bg-emerald-400 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)]"
                   : "bg-red-500 hover:bg-red-400 text-white shadow-[0_0_20px_rgba(239,68,68,0.4)]"
               }`}
             >
-              {saving ? "Switch & Save" : "Review Plans"}
+              {bestCompare.saving ? "Switch & Save" : "Review Plans"}
               <FiArrowRight size={15} />
             </button>
           </div>

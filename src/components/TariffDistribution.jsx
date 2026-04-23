@@ -10,6 +10,8 @@ import {
   FiChevronRight,
   FiChevronUp,
   FiChevronDown,
+  FiHome,
+  FiTool,
 } from "react-icons/fi";
 
 import {
@@ -37,19 +39,18 @@ export default function TariffDistribution({
       ? "bg-slate-900/80 border-white/10 text-white"
       : "bg-white border-slate-200 text-slate-900";
 
-  const [search, setSearch] =
-    useState("");
+  const [search, setSearch] = useState("");
   const [status, setStatus] =
     useState("All Status");
   const [segment, setSegment] =
     useState("All");
 
-  const [page, setPage] =
-    useState(1);
+  const [tableType, setTableType] =
+    useState("Residential");
 
+  const [page, setPage] = useState(1);
   const [sortBy, setSortBy] =
     useState("name");
-
   const [sortDir, setSortDir] =
     useState("asc");
 
@@ -61,6 +62,22 @@ export default function TariffDistribution({
       rate: 0.09,
       customers: 1240,
       revenue: 84,
+      status: "Active",
+      type: "Residential",
+    },
+    {
+      name: "Night Saver",
+      rate: 0.07,
+      customers: 880,
+      revenue: 66,
+      status: "Pending",
+      type: "Residential",
+    },
+    {
+      name: "Green Energy",
+      rate: 0.14,
+      customers: 930,
+      revenue: 92,
       status: "Active",
       type: "Residential",
     },
@@ -81,36 +98,20 @@ export default function TariffDistribution({
       type: "Commercial",
     },
     {
-      name: "Industrial Core",
-      rate: 0.08,
-      customers: 420,
-      revenue: 121,
-      status: "Active",
-      type: "Industrial",
-    },
-    {
-      name: "Night Saver",
-      rate: 0.07,
-      customers: 880,
-      revenue: 66,
-      status: "Pending",
-      type: "Residential",
-    },
-    {
-      name: "Green Energy",
-      rate: 0.14,
-      customers: 930,
-      revenue: 92,
-      status: "Active",
-      type: "Residential",
-    },
-    {
       name: "SME Growth",
       rate: 0.11,
       customers: 760,
       revenue: 58,
       status: "Pending",
       type: "Commercial",
+    },
+    {
+      name: "Industrial Core",
+      rate: 0.08,
+      customers: 420,
+      revenue: 121,
+      status: "Active",
+      type: "Industrial",
     },
     {
       name: "Enterprise Max",
@@ -122,137 +123,109 @@ export default function TariffDistribution({
     },
   ];
 
-  const filteredTariffs =
-    useMemo(() => {
-      let data =
-        tariffs.filter((item) => {
-          const s =
-            item.name
-              .toLowerCase()
-              .includes(
-                search.toLowerCase()
-              );
+  const filteredTariffs = useMemo(() => {
+    let data = tariffs.filter((item) => {
+      const s = item.name
+        .toLowerCase()
+        .includes(search.toLowerCase());
 
-          const st =
-            status ===
-            "All Status"
-              ? true
-              : item.status ===
-                status;
+      const st =
+        status === "All Status"
+          ? true
+          : item.status === status;
 
-          const seg =
-            segment === "All"
-              ? true
-              : item.type ===
-                segment;
+      const seg =
+        segment === "All"
+          ? true
+          : item.type === segment;
 
-          return (
-            s && st && seg
-          );
-        });
+      return s && st && seg;
+    });
 
-      data.sort((a, b) => {
-        let A = a[sortBy];
-        let B = b[sortBy];
+    data.sort((a, b) => {
+      let A = a[sortBy];
+      let B = b[sortBy];
 
-        if (
-          typeof A ===
-          "string"
-        ) {
-          A =
-            A.toLowerCase();
-          B =
-            B.toLowerCase();
-        }
+      if (typeof A === "string") {
+        A = A.toLowerCase();
+        B = B.toLowerCase();
+      }
 
-        if (A < B)
-          return sortDir ===
-            "asc"
-            ? -1
-            : 1;
+      if (A < B)
+        return sortDir === "asc"
+          ? -1
+          : 1;
 
-        if (A > B)
-          return sortDir ===
-            "asc"
-            ? 1
-            : -1;
+      if (A > B)
+        return sortDir === "asc"
+          ? 1
+          : -1;
 
-        return 0;
-      });
+      return 0;
+    });
 
-      return data;
-    }, [
-      search,
-      status,
-      segment,
-      sortBy,
-      sortDir,
-    ]);
+    return data;
+  }, [
+    search,
+    status,
+    segment,
+    sortBy,
+    sortDir,
+  ]);
+
+  const chartData = filteredTariffs;
+
+  const tableFiltered = filteredTariffs.filter(
+    (item) => item.type === tableType
+  );
 
   const totalPages =
     Math.ceil(
-      filteredTariffs.length /
-        perPage
+      tableFiltered.length / perPage
     ) || 1;
 
   const paginatedData =
-    filteredTariffs.slice(
+    tableFiltered.slice(
       (page - 1) * perPage,
       page * perPage
     );
 
   const totalRevenue =
     filteredTariffs.reduce(
-      (a, b) =>
-        a + b.revenue,
+      (a, b) => a + b.revenue,
       0
     );
 
   const totalCustomers =
     filteredTariffs.reduce(
-      (sum, item) =>
-        sum + item.customers,
+      (a, b) => a + b.customers,
       0
     );
 
-  const pieData =
-    filteredTariffs.map(
-      (item, i) => ({
-        name: item.name,
-        value: item.customers,
-        percentage: (
-          (item.customers /
-            totalCustomers) *
-          100
-        ).toFixed(1),
-        color: [
-          "#06b6d4",
-          "#8b5cf6",
-          "#10b981",
-          "#f59e0b",
-          "#ef4444",
-          "#14b8a6",
-          "#6366f1",
-          "#ec4899",
-        ][i % 8],
-      })
-    );
+  const pieData = filteredTariffs.map(
+    (item, i) => ({
+      name: item.name,
+      value: item.customers,
+      color: [
+        "#06b6d4",
+        "#8b5cf6",
+        "#10b981",
+        "#f59e0b",
+        "#ef4444",
+        "#14b8a6",
+        "#6366f1",
+        "#ec4899",
+      ][i % 8],
+    })
+  );
 
-  const lineData =
-    filteredTariffs.map(
-      (item) => ({
-        name:
-          item.name.split(
-            " "
-          )[0],
-        revenue:
-          item.revenue,
-      })
-    );
+  const totalPie =
+    pieData.reduce(
+      (a, b) => a + b.value,
+      0
+    ) || 1;
 
-  const sortColumn = (
-    col
-  ) => {
+  const sortColumn = (col) => {
     if (sortBy === col) {
       setSortDir(
         sortDir === "asc"
@@ -265,9 +238,7 @@ export default function TariffDistribution({
     }
   };
 
-  const SortIcon = ({
-    col,
-  }) =>
+  const SortIcon = ({ col }) =>
     sortBy === col ? (
       sortDir === "asc" ? (
         <FiChevronUp />
@@ -280,28 +251,19 @@ export default function TariffDistribution({
 
   return (
     <div
-      className={`min-h-screen p-4 sm:p-6 ${
-        isDark
+      className={`min-h-screen p-4 sm:p-6 ${isDark
           ? "bg-slate-950 text-white"
           : "bg-slate-50 text-slate-900"
-      }`}
+        }`}
     >
-      {/* Glow */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-10 left-10 w-72 h-72 bg-cyan-500/10 blur-3xl rounded-full" />
-        <div className="absolute bottom-10 right-10 w-72 h-72 bg-purple-500/10 blur-3xl rounded-full" />
-      </div>
-
-      <div className="relative max-w-7xl mx-auto space-y-5">
+      <div className="max-w-7xl mx-auto space-y-5">
         {/* Header */}
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+          <h1 className="text-3xl font-black">
             Tariff Distribution
           </h1>
-
           <p className="text-xs mt-1 text-slate-400">
-            Dynamic tariff plans,
-            pricing intelligence &
+            Dynamic tariff plans &
             customer distribution
           </p>
         </div>
@@ -316,31 +278,29 @@ export default function TariffDistribution({
           </div>
 
           <div
-            className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition ${input}`}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${input}`}
           >
             <FiSearch className="text-slate-400" />
             <input
               value={search}
-              onChange={(e) => {
+              onChange={(e) =>
                 setSearch(
                   e.target.value
-                );
-                setPage(1);
-              }}
+                )
+              }
               placeholder="Search tariff..."
-              className="bg-transparent outline-none text-sm w-full placeholder:text-slate-400"
+              className="bg-transparent outline-none text-sm w-full"
             />
           </div>
 
           <select
             value={status}
-            onChange={(e) => {
+            onChange={(e) =>
               setStatus(
                 e.target.value
-              );
-              setPage(1);
-            }}
-            className={`px-3 py-2 rounded-xl text-sm border transition ${input}`}
+              )
+            }
+            className={`px-3 py-2 rounded-xl border ${input}`}
           >
             <option>
               All Status
@@ -351,13 +311,12 @@ export default function TariffDistribution({
 
           <select
             value={segment}
-            onChange={(e) => {
+            onChange={(e) =>
               setSegment(
                 e.target.value
-              );
-              setPage(1);
-            }}
-            className={`px-3 py-2 rounded-xl text-sm border transition ${input}`}
+              )
+            }
+            className={`px-3 py-2 rounded-xl border ${input}`}
           >
             <option>All</option>
             <option>
@@ -382,15 +341,7 @@ export default function TariffDistribution({
             ],
             [
               "Customers",
-              filteredTariffs.reduce(
-                (
-                  a,
-                  b
-                ) =>
-                  a +
-                  b.customers,
-                0
-              ),
+              totalCustomers,
               <FiUsers />,
             ],
             [
@@ -419,51 +370,182 @@ export default function TariffDistribution({
               key={idx}
               className={`rounded-2xl border p-4 ${card}`}
             >
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-slate-400 uppercase tracking-wide">
+              <div className="flex justify-between">
+                <span className="text-xs text-slate-400">
                   {t}
                 </span>
-
-                <span className="text-cyan-400 text-lg">
+                <span className="text-cyan-400">
                   {i}
                 </span>
               </div>
 
-              <h2 className="text-2xl font-black mt-2 tracking-tight">
+              <h2 className="text-2xl font-black mt-2">
                 {v}
               </h2>
             </div>
           ))}
         </div>
 
-        {/* Table */}
+        {/* Charts */}
+        <div className="grid lg:grid-cols-2 gap-4">
+          {/* Pie */}
+          <div
+            className={`rounded-3xl border p-4 ${card}`}
+          >
+            <h2 className="font-bold text-sm mb-4">
+              Tariff Share
+            </h2>
+
+            <div className="grid md:grid-cols-2 gap-4 items-center">
+              <div className="h-[280px]">
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      dataKey="value"
+                      innerRadius={58}
+                      outerRadius={92}
+                    >
+                      {pieData.map(
+                        (item, i) => (
+                          <Cell
+                            key={i}
+                            fill={item.color}
+                          />
+                        )
+                      )}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="space-y-2">
+                {pieData.map(
+                  (item, i) => (
+                    <div
+                      key={i}
+                      className={`flex justify-between px-3 py-2 rounded-xl ${isDark
+                          ? "bg-white/5"
+                          : "bg-slate-100"
+                        }`}
+                    >
+                      <span>
+                        {
+                          item.name
+                        }
+                      </span>
+                      <span className="text-cyan-400 font-semibold">
+                        {(
+                          (item.value /
+                            totalPie) *
+                          100
+                        ).toFixed(1)}
+                        %
+                      </span>
+                    </div>
+                  )
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Revenue */}
+          <div
+            className={`rounded-3xl border p-4 ${card}`}
+          >
+            <h2 className="font-bold text-sm mb-4">
+              Revenue by Tariff
+            </h2>
+
+            <ResponsiveContainer
+              width="100%"
+              height={280}
+            >
+              <LineChart
+                data={chartData}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  opacity={0.08}
+                />
+                <XAxis
+                  dataKey="name"
+                  fontSize={11}
+                />
+                <YAxis fontSize={11} />
+                <Tooltip />
+                <Line
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#06b6d4"
+                  strokeWidth={3}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Small Stylish Nav */}
+        {/* Centered Stylish Nav */}
+        <div className="flex justify-center">
+          <div
+            className={`rounded-2xl border p-2 flex gap-2 w-fit ${card}`}
+          >
+            {[
+              {
+                label: "Residential",
+                icon: <FiHome />,
+              },
+              {
+                label: "Industrial",
+                icon: <FiTool />,
+              },
+            ].map((item) => (
+              <button
+                key={item.label}
+                onClick={() => {
+                  setTableType(item.label);
+                  setPage(1);
+                }}
+                className={`px-5 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition-all duration-300 ${tableType === item.label
+                    ? "bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-lg"
+                    : isDark
+                      ? "hover:bg-white/5 text-slate-300"
+                      : "hover:bg-slate-100 text-slate-700"
+                  }`}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Table BELOW charts */}
         <div
           className={`rounded-3xl border overflow-hidden ${card}`}
         >
           <div className="px-5 py-4 border-b border-white/10">
-            <h2 className="font-bold text-sm tracking-wide uppercase">
-              Tariff Plans
+            <h2 className="font-bold text-sm">
+              {tableType} Tariffs
             </h2>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead
-                className={`${
+                className={
                   isDark
                     ? "bg-white/5"
                     : "bg-slate-100"
-                }`}
+                }
               >
                 <tr>
                   {[
                     [
                       "name",
                       "Name",
-                    ],
-                    [
-                      "type",
-                      "Type",
                     ],
                     [
                       "rate",
@@ -478,12 +560,10 @@ export default function TariffDistribution({
                       "Status",
                     ],
                   ].map(
-                    (
-                      [
-                        key,
-                        label,
-                      ]
-                    ) => (
+                    ([
+                      key,
+                      label,
+                    ]) => (
                       <th
                         key={
                           key
@@ -493,7 +573,7 @@ export default function TariffDistribution({
                             key
                           )
                         }
-                        className="text-left px-5 py-3 cursor-pointer text-xs font-semibold uppercase tracking-wide"
+                        className="px-5 py-3 text-left cursor-pointer"
                       >
                         <div className="flex items-center gap-2">
                           {
@@ -519,19 +599,14 @@ export default function TariffDistribution({
                   ) => (
                     <tr
                       key={i}
-                      className="border-t border-white/5 hover:bg-white/[0.03] transition"
+                      className="border-t border-white/5 hover:bg-white/5"
                     >
-                      <td className="px-5 py-4 font-medium">
+                      <td className="px-5 py-4">
                         {
                           item.name
                         }
                       </td>
-                      <td className="px-5 py-4 text-slate-400">
-                        {
-                          item.type
-                        }
-                      </td>
-                      <td className="px-5 py-4 font-medium text-cyan-400">
+                      <td className="px-5 py-4 text-cyan-400">
                         $
                         {
                           item.rate
@@ -544,12 +619,11 @@ export default function TariffDistribution({
                       </td>
                       <td className="px-5 py-4">
                         <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            item.status ===
-                            "Active"
+                          className={`px-3 py-1 rounded-full text-xs ${item.status ===
+                              "Active"
                               ? "bg-emerald-500/15 text-emerald-400"
                               : "bg-amber-500/15 text-amber-400"
-                          }`}
+                            }`}
                         >
                           {
                             item.status
@@ -563,7 +637,6 @@ export default function TariffDistribution({
             </table>
           </div>
 
-          {/* Pagination */}
           <div className="px-5 py-4 border-t border-white/10 flex justify-between items-center">
             <p className="text-xs text-slate-400">
               Page {page} of{" "}
@@ -580,7 +653,7 @@ export default function TariffDistribution({
                     )
                   )
                 }
-                className="w-9 h-9 rounded-xl border flex items-center justify-center hover:bg-white/5 transition"
+                className="w-9 h-9 rounded-xl border flex items-center justify-center"
               >
                 <FiChevronLeft />
               </button>
@@ -594,164 +667,114 @@ export default function TariffDistribution({
                     )
                   )
                 }
-                className="w-9 h-9 rounded-xl border flex items-center justify-center hover:bg-white/5 transition"
+                className="w-9 h-9 rounded-xl border flex items-center justify-center"
               >
                 <FiChevronRight />
               </button>
             </div>
           </div>
         </div>
+        {/* DRILL DOWN SECTION */}
+        <div className="grid lg:grid-cols-3 gap-4 mt-4">
+          {/* Usage Breakdown */}
+          <div className={`rounded-3xl border p-5 ${card}`}>
+            <h3 className="text-sm font-bold mb-4 uppercase tracking-wide">
+              Usage Breakdown
+            </h3>
 
-        {/* Charts */}
-        <div className="grid lg:grid-cols-2 gap-4">
-          {/* Pie */}
-          <div
-            className={`rounded-3xl border p-4 ${card}`}
-          >
-            <h2 className="text-sm font-bold mb-4 uppercase tracking-wide">
-              Tariff Share by Customers
-            </h2>
+            {[
+              { label: "Peak Hours", value: 52 },
+              { label: "Off-Peak", value: 31 },
+              { label: "Night Load", value: 17 },
+            ].map((item, i) => (
+              <div key={i} className="mb-4">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-slate-400">
+                    {item.label}
+                  </span>
+                  <span className="font-semibold text-cyan-400">
+                    {item.value}%
+                  </span>
+                </div>
 
-            <div className="grid md:grid-cols-2 gap-4 items-center">
-              <div className="h-[280px]">
-                <ResponsiveContainer
-                  width="100%"
-                  height="100%"
-                >
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      dataKey="value"
-                      innerRadius={58}
-                      outerRadius={92}
-                      paddingAngle={3}
-                    >
-                      {pieData.map(
-                        (item, i) => (
-                          <Cell
-                            key={i}
-                            fill={item.color}
-                          />
-                        )
-                      )}
-                    </Pie>
+                <div className="h-2 rounded-full bg-slate-800">
+                  <div
+                    className="h-2 rounded-full bg-gradient-to-r from-cyan-500 to-purple-600"
+                    style={{ width: `${item.value}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
 
-                    <Tooltip
-                      contentStyle={{
-                        borderRadius:
-                          "16px",
-                        border:
-                          "1px solid rgba(255,255,255,0.08)",
-                        background:
-                          isDark
-                            ? "#0f172ae6"
-                            : "#ffffff",
-                        fontSize:
-                          "12px",
-                      }}
-                      formatter={(
-                        value,
-                        name,
-                        props
-                      ) => [
-                        `${props.payload.percentage}%`,
-                        name,
-                      ]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+         
+          {/* <div className={`rounded-3xl border p-5 ${card}`}>
+            <h3 className="text-sm font-bold mb-4 uppercase tracking-wide">
+              Avg Monthly Bill
+            </h3>
+
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-slate-400 text-sm">
+                  Energy Cost
+                </span>
+                <span className="font-semibold text-cyan-400">
+                  $120
+                </span>
               </div>
 
-              <div className="space-y-2">
-                {pieData.map(
-                  (item, i) => (
-                    <div
-                      key={i}
-                      className={`flex justify-between items-center px-3 py-2 rounded-xl ${
-                        isDark
-                          ? "bg-white/5"
-                          : "bg-slate-100"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="w-3 h-3 rounded-full"
-                          style={{
-                            background:
-                              item.color,
-                          }}
-                        />
-                        <span className="text-sm">
-                          {item.name}
-                        </span>
-                      </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400 text-sm">
+                  Taxes & Fees
+                </span>
+                <span className="font-semibold">
+                  $18
+                </span>
+              </div>
 
-                      <span className="text-sm font-semibold text-cyan-400">
-                        {item.percentage}%
-                      </span>
-                    </div>
-                  )
-                )}
+              <div className="border-t border-white/10 pt-3 flex justify-between">
+                <span className="font-semibold">
+                  Total
+                </span>
+                <span className="font-bold text-lg text-cyan-400">
+                  $138
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Line */}
-          <div
-            className={`rounded-3xl border p-4 ${card}`}
-          >
-            <h2 className="text-sm font-bold mb-4 uppercase tracking-wide">
-              Revenue by Tariff
-            </h2>
+          
+          <div className={`rounded-3xl border p-5 ${card}`}>
+            <h3 className="text-sm font-bold mb-4 uppercase tracking-wide">
+              Segment Insights
+            </h3>
 
-            <ResponsiveContainer
-              width="100%"
-              height={280}
-            >
-              <LineChart
-                data={
-                  lineData
-                }
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  opacity={0.08}
-                />
-                <XAxis
-                  dataKey="name"
-                  fontSize={11}
-                />
-                <YAxis fontSize={11} />
-                <Tooltip
-                  contentStyle={{
-                    borderRadius:
-                      "16px",
-                    border:
-                      "1px solid rgba(255,255,255,0.08)",
-                    background:
-                      isDark
-                        ? "#0f172ae6"
-                        : "#ffffff",
-                    fontSize:
-                      "12px",
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#06b6d4"
-                  strokeWidth={3}
-                  dot={{
-                    r: 4,
-                    fill: "#06b6d4",
-                  }}
-                  activeDot={{
-                    r: 6,
-                  }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+            {tableType === "Residential" ? (
+              <div className="space-y-3 text-sm">
+                <p className="text-slate-400">
+                  • Higher usage during evening peak hours
+                </p>
+                <p className="text-slate-400">
+                  • Strong adoption of green tariffs
+                </p>
+                <p className="text-slate-400">
+                  • Avg consumption stable month-on-month
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3 text-sm">
+                <p className="text-slate-400">
+                  • High load consistency across hours
+                </p>
+                <p className="text-slate-400">
+                  • Lower cost tariffs preferred
+                </p>
+                <p className="text-slate-400">
+                  • Significant bulk consumption savings
+                </p>
+              </div>
+            )}
+          </div> */}
         </div>
       </div>
     </div>
