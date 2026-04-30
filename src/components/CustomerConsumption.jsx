@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
     FiBarChart2,
     FiActivity,
@@ -12,6 +12,7 @@ import {
     FiMapPin,
     FiHome,
 } from "react-icons/fi";
+import BillingCard from "./BillingCard";
 
 import {
     ResponsiveContainer,
@@ -45,44 +46,181 @@ export default function CustomerConsumption({
     const [source, setSource] =
         useState("Smart Meter");
 
+    /* API STATE */
+    const [trendData, setTrendData] = useState([]);
+    const [pieTypeData, setPieTypeData] = useState([]);
+    const [pieETypeData, setPieETypeData] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [pieLoading, setPieLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [pieError, setPieError] = useState(null);
+
     const card =
         isDark
             ? "bg-white/5 border-white/10"
             : "bg-white border-slate-200";
 
-    /* RANGE DATA */
-    const rangeData = {
-        Daily: [
-            { month: "Mon", value: 420 },
-            { month: "Tue", value: 510 },
-            { month: "Wed", value: 470 },
-            { month: "Thu", value: 560 },
-            { month: "Fri", value: 610 },
-            { month: "Sat", value: 390 },
-        ],
-        Weekly: [
-            { month: "W1", value: 1800 },
-            { month: "W2", value: 2300 },
-            { month: "W3", value: 2100 },
-            { month: "W4", value: 2480 },
-        ],
-        Monthly: [
-            { month: "Jan", value: 2100 },
-            { month: "Feb", value: 2400 },
-            { month: "Mar", value: 2250 },
-            { month: "Apr", value: 2780 },
-            { month: "May", value: 3120 },
-            { month: "Jun", value: 2980 },
-        ],
-        Yearly: [
-            { month: "2021", value: 16200 },
-            { month: "2022", value: 19100 },
-            { month: "2023", value: 22500 },
-            { month: "2024", value: 24700 },
-        ],
-    };
+    /* API ENDPOINTS */
+    const API_BASE = "http://localhost:8000/api/consumption-chart";
 
-    const trendData = rangeData[range];
+    /* FETCH DATA FROM API */
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                let endpoint = "";
+                let transformedData = [];
+
+                const rangeMap = {
+                    Daily: "daily",
+                    Weekly: "weekly",
+                    Monthly: "monthly",
+                    Yearly: "monthly", // Fallback to monthly
+                };
+
+                endpoint = `${API_BASE}/${rangeMap[range] || "monthly"}`;
+
+                // Add query parameters for filters
+                const queryParams = new URLSearchParams();
+                if (segment !== "All") queryParams.append("type", segment.toLowerCase());
+                if (region !== "All Regions") queryParams.append("region", region.toLowerCase());
+                if (customerType !== "All Types") queryParams.append("e_type", customerType.toLowerCase());
+                if (source !== "Smart Meter") queryParams.append("source", source.toLowerCase());
+
+                const url = queryParams.toString() ? `${endpoint}?${queryParams.toString()}` : endpoint;
+
+                console.log("Fetching trend data from:", url);
+                console.log("Filter values - segment:", segment, "region:", region, "customerType:", customerType, "source:", source);
+
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status}`);
+                }
+
+                const apiData = await response.json();
+
+                // Transform API data to chart format
+                if (range === "Daily" && apiData.data) {
+                    transformedData = apiData.data.map((item) => ({
+                        month: item.date,
+                        value: parseFloat(item.average_consumption),
+                    }));
+                } else if (range === "Weekly" && apiData.data) {
+                    transformedData = apiData.data.map((item, index) => ({
+                        month: `W${index + 1}`,
+                        value: parseFloat(item.average_consumption),
+                    }));
+                } else if (range === "Monthly" && apiData.data) {
+                    transformedData = apiData.data.map((item) => ({
+                        month: item.month || new Date(item.date).toLocaleString("default", { month: "short", year: "numeric" }),
+                        value: parseFloat(item.average_consumption),
+                    }));
+                } else if (range === "Yearly") {
+                    // Fallback to hardcoded yearly data since no API endpoint provided
+                    transformedData = [
+                        { month: "2021", value: 16200 },
+                        { month: "2022", value: 19100 },
+                        { month: "2023", value: 22500 },
+                        { month: "2024", value: 24700 },
+                    ];
+                }
+
+                setTrendData(transformedData);
+            } catch (err) {
+                console.error("Error fetching data:", err);
+                setError(err.message);
+                // Fallback to empty data on error
+                setTrendData([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [range, segment, region, customerType, source]);
+
+    /* FETCH PIE CHART DATA FROM API */
+    useEffect(() => {
+        const fetchPieData = async () => {
+            setPieLoading(true);
+            setPieError(null);
+            try {
+                const PIE_API_BASE = `${API_BASE.replace('/consumption-chart', '')}/pie-chart`;
+                
+                const colors = ["#06b6d4", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444"];
+
+                // Build query parameters for both endpoints with all three filter parameters
+                const buildParams = () => {
+                    const params = new URLSearchParams();
+                    
+                    // Add type parameter (from Segment filter)
+                    if (segment !== "All") {
+                        params.append("type", segment.toLowerCase());
+                    }
+                    
+                    // Add region parameter
+                    if (region !== "All Regions") {
+                        params.append("region", region.toLowerCase());
+                    }
+                    
+                    // Add e_type parameter (from Customer Type filter)
+                    if (customerType !== "All Types") {
+                        params.append("e_type", customerType.toLowerCase());
+                    }
+                    
+                    return params;
+                };
+
+                const params = buildParams();
+                const queryString = params.toString() ? `?${params.toString()}` : "";
+
+                const typeUrl = `${PIE_API_BASE}/type${queryString}`;
+                const eTypeUrl = `${PIE_API_BASE}/e-type${queryString}`;
+
+                console.log("Type URL:", typeUrl);
+                console.log("E-Type URL:", eTypeUrl);
+                console.log("Pie filters - range:", range, "segment:", segment, "region:", region, "customerType:", customerType);
+                console.log("Built params - type:", segment.toLowerCase(), "region:", region.toLowerCase(), "e_type:", customerType.toLowerCase());
+
+                // Fetch type data (distribution by type - shows segment values like smb, industrial, residential)
+                const typeResponse = await fetch(typeUrl);
+                if (!typeResponse.ok) {
+                    throw new Error(`Type API Error: ${typeResponse.status}`);
+                }
+                const typeData = await typeResponse.json();
+                const transformedTypeData = typeData.data.map((item, index) => ({
+                    name: item.label.charAt(0).toUpperCase() + item.label.slice(1),
+                    value: item.value,
+                    color: colors[index % colors.length],
+                }));
+                setPieTypeData(transformedTypeData);
+
+                // Fetch e-type data (distribution by e-type - shows customer type values like 3band, eco, flat)
+                const eTypeResponse = await fetch(eTypeUrl);
+                if (!eTypeResponse.ok) {
+                    throw new Error(`E-Type API Error: ${eTypeResponse.status}`);
+                }
+                const eTypeData = await eTypeResponse.json();
+                const transformedETypeData = eTypeData.data.map((item, index) => ({
+                    name: item.label.charAt(0).toUpperCase() + item.label.slice(1),
+                    value: item.value,
+                    color: colors[index % colors.length],
+                }));
+                setPieETypeData(transformedETypeData);
+
+            } catch (err) {
+                console.error("Error fetching pie data:", err);
+                setPieError(err.message);
+                setPieTypeData([]);
+                setPieETypeData([]);
+            } finally {
+                setPieLoading(false);
+            }
+        };
+
+        fetchPieData();
+    }, [range, segment, region, customerType]);
 
     const hourlyData = [
         { time: "6AM", load: 110 },
@@ -92,33 +230,6 @@ export default function CustomerConsumption({
         { time: "6PM", load: 320 },
         { time: "9PM", load: 270 },
     ];
-
-    const allSegments = [
-        {
-            name: "Industrial",
-            value: 48,
-            color: "#06b6d4",
-        },
-        {
-            name: "Commercial",
-            value: 32,
-            color: "#8b5cf6",
-        },
-        {
-            name: "Residential",
-            value: 20,
-            color: "#10b981",
-        },
-    ];
-
-    const segmentData = useMemo(() => {
-        if (segment === "All")
-            return allSegments;
-
-        return allSegments.filter(
-            (x) => x.name === segment
-        );
-    }, [segment]);
 
     /* TOOLTIP */
     const CustomTooltip = ({
@@ -245,8 +356,8 @@ export default function CustomerConsumption({
                                 set: setSegment,
                                 options: [
                                     "All",
+                                    "Smb",
                                     "Industrial",
-                                    "Commercial",
                                     "Residential",
                                 ],
                             },
@@ -268,9 +379,9 @@ export default function CustomerConsumption({
                                 set: setCustomerType,
                                 options: [
                                     "All Types",
-                                    "Enterprise",
-                                    "SME",
-                                    "Domestic",
+                                    "3band",
+                                    "Eco",
+                                    "Flat",
                                 ],
                             },
                             {
@@ -365,141 +476,184 @@ export default function CustomerConsumption({
                                 Consumption Trend
                             </h2>
 
-                            <span className="text-xs text-emerald-400 flex items-center gap-1">
+                            <span className={`text-xs flex items-center gap-1 ${
+                                loading ? "text-amber-400" : "text-emerald-400"
+                            }`}>
                                 <FiZap size={12} />
-                                Live
+                                {loading ? "Loading..." : error ? "Error" : "Live"}
                             </span>
                         </div>
 
-                        <ResponsiveContainer
-                            width="100%"
-                            height={250}
-                        >
-                            <AreaChart data={trendData}>
-                                <defs>
-                                    <linearGradient
-                                        id="fillA"
-                                        x1="0"
-                                        y1="0"
-                                        x2="0"
-                                        y2="1"
-                                    >
-                                        <stop
-                                            offset="5%"
-                                            stopColor="#06b6d4"
-                                            stopOpacity={0.6}
-                                        />
-                                        <stop
-                                            offset="95%"
-                                            stopColor="#8b5cf6"
-                                            stopOpacity={0}
-                                        />
-                                    </linearGradient>
-                                </defs>
+                        {error && (
+                            <div className="text-red-400 text-sm p-4 text-center">
+                                Error: {error}
+                            </div>
+                        )}
 
-                                <CartesianGrid
-                                    strokeDasharray="3 3"
-                                    opacity={0.08}
-                                />
+                        {trendData.length === 0 && !loading && !error && (
+                            <div className="text-slate-400 text-sm p-4 text-center">
+                                No data available
+                            </div>
+                        )}
 
-                                <XAxis
-                                    dataKey="month"
-                                    fontSize={11}
-                                />
-                                <YAxis fontSize={11} />
-
-                                <Tooltip
-                                    content={
-                                        <CustomTooltip />
-                                    }
-                                />
-
-                                <Area
-                                    type="monotone"
-                                    dataKey="value"
-                                    stroke="#06b6d4"
-                                    strokeWidth={2}
-                                    fill="url(#fillA)"
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-
-                    {/* CUSTOMER MIX */}
-                    <div
-                        className={`rounded-2xl border p-4 ${card}`}
-                    >
-                        <h2 className="font-bold text-sm mb-3 flex items-center gap-2">
-                            <FiPieChart className="text-cyan-400" />
-                            Customer Mix
-                        </h2>
-
-                        <div className="grid grid-cols-2 gap-2 items-center">
+                        {trendData.length > 0 && (
                             <ResponsiveContainer
                                 width="100%"
-                                height={220}
+                                height={250}
                             >
-                                <PieChart>
-                                    <Pie
-                                        data={segmentData}
-                                        innerRadius={45}
-                                        outerRadius={72}
-                                        dataKey="value"
-                                        paddingAngle={4}
-                                    >
-                                        {segmentData.map(
-                                            (
-                                                entry,
-                                                index
-                                            ) => (
-                                                <Cell
-                                                    key={index}
-                                                    fill={
-                                                        entry.color
-                                                    }
-                                                />
-                                            )
-                                        )}
-                                    </Pie>
+                                <AreaChart data={trendData}>
+                                    <defs>
+                                        <linearGradient
+                                            id="fillA"
+                                            x1="0"
+                                            y1="0"
+                                            x2="0"
+                                            y2="1"
+                                        >
+                                            <stop
+                                                offset="5%"
+                                                stopColor="#06b6d4"
+                                                stopOpacity={0.6}
+                                            />
+                                            <stop
+                                                offset="95%"
+                                                stopColor="#8b5cf6"
+                                                stopOpacity={0}
+                                            />
+                                        </linearGradient>
+                                    </defs>
+
+                                    <CartesianGrid
+                                        strokeDasharray="3 3"
+                                        opacity={0.08}
+                                    />
+
+                                    <XAxis
+                                        dataKey="month"
+                                        fontSize={11}
+                                    />
+                                    <YAxis fontSize={11} />
 
                                     <Tooltip
                                         content={
                                             <CustomTooltip />
                                         }
                                     />
-                                </PieChart>
+
+                                    <Area
+                                        type="monotone"
+                                        dataKey="value"
+                                        stroke="#06b6d4"
+                                        strokeWidth={2}
+                                        fill="url(#fillA)"
+                                    />
+                                </AreaChart>
                             </ResponsiveContainer>
+                        )}
+                    </div>
 
+                    {/* BY SEGMENT */}
+                    <div
+                        className={`rounded-2xl border p-4 ${card}`}
+                    >
+                        <h2 className="font-bold text-sm mb-3 flex items-center gap-2">
+                            <FiPieChart className="text-cyan-400" />
+                            By Segment
+                            {(region !== "All Regions" || customerType !== "All Types") && (
+                                <span className="text-xs font-normal text-slate-400 ml-auto">
+                                    {region !== "All Regions" && region}
+                                    {region !== "All Regions" && customerType !== "All Types" && " • "}
+                                    {customerType !== "All Types" && customerType}
+                                </span>
+                            )}
+                        </h2>
 
-                            <div className="space-y-3">
-                                {segmentData.map(
-                                    (
-                                        item,
-                                        i
-                                    ) => (
-                                        <div
-                                            key={i}
-                                            className="flex justify-between items-center text-xs"
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <span
-                                                    className="w-2.5 h-2.5 rounded-full"
-                                                    style={{
-                                                        background:
-                                                            item.color,
-                                                    }}
-                                                />
-                                                {item.name}
-                                            </div>
-
-                                            <span className="font-semibold">
-                                                {item.value}%
-                                            </span>
-                                        </div>
-                                    )
-                                )}
+                        {pieError && (
+                            <div className="text-red-400 text-xs p-4 text-center">
+                                Error: {pieError}
                             </div>
-                        </div>
+                        )}
+
+                        {pieLoading && (
+                            <div className="text-slate-400 text-xs p-4 text-center">
+                                Loading...
+                            </div>
+                        )}
+
+                        {pieTypeData.length === 0 && !pieLoading && !pieError && (
+                            <div className="text-slate-400 text-xs p-4 text-center">
+                                No data available
+                            </div>
+                        )}
+
+                        {pieTypeData.length > 0 && (
+                            <div className="grid grid-cols-2 gap-2 items-center">
+                                <ResponsiveContainer
+                                    width="100%"
+                                    height={220}
+                                >
+                                    <PieChart>
+                                        <Pie
+                                            data={pieTypeData}
+                                            innerRadius={45}
+                                            outerRadius={72}
+                                            dataKey="value"
+                                            paddingAngle={4}
+                                        >
+                                            {pieTypeData.map(
+                                                (
+                                                    entry,
+                                                    index
+                                                ) => (
+                                                    <Cell
+                                                        key={index}
+                                                        fill={
+                                                            entry.color
+                                                        }
+                                                    />
+                                                )
+                                            )}
+                                        </Pie>
+
+                                        <Tooltip
+                                            content={
+                                                <CustomTooltip />
+                                            }
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
+
+
+                                <div className="space-y-3">
+                                    {pieTypeData.map(
+                                        (
+                                            item,
+                                            i
+                                        ) => (
+                                            <div
+                                                key={i}
+                                                className="flex justify-between items-center text-xs"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span
+                                                        className="w-2.5 h-2.5 rounded-full"
+                                                        style={{
+                                                            background:
+                                                                item.color,
+                                                        }}
+                                                    />
+                                                    {item.name}
+                                                </div>
+
+                                                <span className="font-semibold">
+                                                    {item.value}%
+                                                </span>
+                                            </div>
+                                        )
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -507,78 +661,108 @@ export default function CustomerConsumption({
                 {/* Replace ONLY the bottom charts section with this */}
 
                 <div className="grid lg:grid-cols-2 gap-4">
-                    {/* Peak Hours */}
+                    {/* BY CUSTOMER TYPE */}
                     <div
                         className={`rounded-2xl border p-4 ${card}`}
                     >
                         <div className="flex items-center justify-between mb-3">
                             <h2 className="font-bold text-sm">
-                                Peak Hours Load
+                                By Customer Type
+                                {(region !== "All Regions" || segment !== "All") && (
+                                    <span className="text-xs font-normal text-slate-400 ml-2">
+                                        {region !== "All Regions" && region}
+                                        {region !== "All Regions" && segment !== "All" && " • "}
+                                        {segment !== "All" && segment}
+                                    </span>
+                                )}
                             </h2>
-
-                            <span className="text-[11px] text-cyan-400">
-                                Smart Meter Live
-                            </span>
                         </div>
 
-                        <ResponsiveContainer
-                            width="100%"
-                            height={240}
-                        >
-                            <BarChart
-                                data={hourlyData}
-                                barSize={34}
-                            >
-                                <defs>
-                                    <linearGradient
-                                        id="barGlow"
-                                        x1="0"
-                                        y1="0"
-                                        x2="0"
-                                        y2="1"
-                                    >
-                                        <stop
-                                            offset="0%"
-                                            stopColor="#06b6d4"
+                        {pieError && (
+                            <div className="text-red-400 text-xs p-4 text-center">
+                                Error: {pieError}
+                            </div>
+                        )}
+
+                        {pieLoading && (
+                            <div className="text-slate-400 text-xs p-4 text-center">
+                                Loading...
+                            </div>
+                        )}
+
+                        {pieETypeData.length === 0 && !pieLoading && !pieError && (
+                            <div className="text-slate-400 text-xs p-4 text-center">
+                                No data available
+                            </div>
+                        )}
+
+                        {pieETypeData.length > 0 && (
+                            <div className="grid grid-cols-2 gap-2 items-center">
+                                <ResponsiveContainer
+                                    width="100%"
+                                    height={220}
+                                >
+                                    <PieChart>
+                                        <Pie
+                                            data={pieETypeData}
+                                            innerRadius={45}
+                                            outerRadius={72}
+                                            dataKey="value"
+                                            paddingAngle={4}
+                                        >
+                                            {pieETypeData.map(
+                                                (
+                                                    entry,
+                                                    index
+                                                ) => (
+                                                    <Cell
+                                                        key={index}
+                                                        fill={
+                                                            entry.color
+                                                        }
+                                                    />
+                                                )
+                                            )}
+                                        </Pie>
+
+                                        <Tooltip
+                                            content={
+                                                <CustomTooltip />
+                                            }
                                         />
-                                        <stop
-                                            offset="100%"
-                                            stopColor="#8b5cf6"
-                                        />
-                                    </linearGradient>
-                                </defs>
+                                    </PieChart>
+                                </ResponsiveContainer>
 
-                                <CartesianGrid
-                                    strokeDasharray="3 3"
-                                    opacity={0.06}
-                                />
+                                <div className="space-y-3">
+                                    {pieETypeData.map(
+                                        (
+                                            item,
+                                            i
+                                        ) => (
+                                            <div
+                                                key={i}
+                                                className="flex justify-between items-center text-xs"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span
+                                                        className="w-2.5 h-2.5 rounded-full"
+                                                        style={{
+                                                            background:
+                                                                item.color,
+                                                        }}
+                                                    />
+                                                    {item.name}
+                                                </div>
 
-                                <XAxis
-                                    dataKey="time"
-                                    fontSize={11}
-                                />
-                                <YAxis fontSize={11} />
-
-                                <Tooltip
-                                    cursor={{
-                                        fill: isDark
-                                            ? "rgba(255,255,255,0.03)"
-                                            : "rgba(0,0,0,0.03)",
-                                    }}
-                                    content={
-                                        <CustomTooltip />
-                                    }
-                                />
-
-                                <Bar
-                                    dataKey="load"
-                                    fill="url(#barGlow)"
-                                    radius={[
-                                        10, 10, 0, 0,
-                                    ]}
-                                />
-                            </BarChart>
-                        </ResponsiveContainer>
+                                                <span className="font-semibold">
+                                                    {item.value}%
+                                                </span>
+                                            </div>
+                                        )
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Forecast (RESTORED) */}
@@ -591,53 +775,71 @@ export default function CustomerConsumption({
                             </h2>
 
                             <span className="text-[11px] text-emerald-400">
-                                AI Prediction
+                                Based on Current Data
                             </span>
                         </div>
 
-                        <ResponsiveContainer
-                            width="100%"
-                            height={240}
-                        >
-                            <LineChart data={trendData}>
-                                <CartesianGrid
-                                    strokeDasharray="3 3"
-                                    opacity={0.06}
-                                />
+                        {trendData.length > 0 && (
+                            <ResponsiveContainer
+                                width="100%"
+                                height={240}
+                            >
+                                <LineChart data={trendData}>
+                                    <CartesianGrid
+                                        strokeDasharray="3 3"
+                                        opacity={0.06}
+                                    />
 
-                                <XAxis
-                                    dataKey="month"
-                                    fontSize={11}
-                                />
+                                    <XAxis
+                                        dataKey="month"
+                                        fontSize={11}
+                                    />
 
-                                <YAxis fontSize={11} />
+                                    <YAxis fontSize={11} />
 
-                                <Tooltip
-                                    content={
-                                        <CustomTooltip />
-                                    }
-                                />
+                                    <Tooltip
+                                        content={
+                                            <CustomTooltip />
+                                        }
+                                    />
 
-                                <Line
-                                    type="monotone"
-                                    dataKey="value"
-                                    stroke="#06b6d4"
-                                    strokeWidth={3}
-                                    dot={{
-                                        r: 3,
-                                        fill: "#06b6d4",
-                                    }}
-                                    activeDot={{
-                                        r: 6,
-                                        fill: "#8b5cf6",
-                                        stroke: "#fff",
-                                        strokeWidth: 2,
-                                    }}
-                                />
-                            </LineChart>
-                        </ResponsiveContainer>
+                                    <Line
+                                        type="monotone"
+                                        dataKey="value"
+                                        stroke="#06b6d4"
+                                        strokeWidth={3}
+                                        dot={{
+                                            r: 3,
+                                            fill: "#06b6d4",
+                                        }}
+                                        activeDot={{
+                                            r: 6,
+                                            fill: "#8b5cf6",
+                                            stroke: "#fff",
+                                            strokeWidth: 2,
+                                        }}
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        )}
+
+                        {trendData.length === 0 && (
+                            <div className="text-slate-400 text-sm p-4 text-center">
+                                No forecast data available
+                            </div>
+                        )}
                     </div>
                 </div>
+
+                {/* BILLING CARD */}
+                <BillingCard
+                    isDark={isDark}
+                    range={range}
+                    segment={segment}
+                    region={region}
+                    customerType={customerType}
+                    source={source}
+                />
             </div>
         </div>
     );

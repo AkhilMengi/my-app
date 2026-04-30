@@ -8,14 +8,9 @@ import {
   FiSliders,
   FiActivity,
   FiArrowRight,
-  FiArrowUpRight,
   FiCheckCircle,
   FiPlus,
   FiX,
-  FiAlertTriangle,
-  FiInfo,
-  FiCalendar,
-  FiPercent,
 } from "react-icons/fi";
 
 import {
@@ -122,175 +117,6 @@ export default function TariffSimulator({ isDark = true }) {
     return point;
   });
 
-  const [showModal, setShowModal] = useState(false);
-
-  const SwitchModal = () => {
-    const isSaving = bestCompare.saving;
-    const annualAmount = annualData[11]?.[bestCompare.name] ?? 0;
-    const monthlyDiff = Math.abs(bestCompare.diff);
-    const currentScore = TARIFF_SCORES[currentTariff] || {};
-    const compareScore = TARIFF_SCORES[bestCompare.name] || {};
-    const betterMetrics = Object.keys(currentScore).filter((m) => (compareScore[m] || 0) > (currentScore[m] || 0));
-    const worseMetrics = Object.keys(currentScore).filter((m) => (compareScore[m] || 0) < (currentScore[m] || 0));
-
-    return (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        style={{ background: "rgba(6,11,24,0.85)", backdropFilter: "blur(8px)" }}
-        onClick={() => setShowModal(false)}
-      >
-        <div
-          className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-[#0c1524] shadow-[0_24px_80px_rgba(0,0,0,0.7)] overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Modal gradient top bar */}
-          <div
-            className="h-1.5 w-full"
-            style={{
-              background: isSaving
-                ? "linear-gradient(90deg,#10b981,#06b6d4)"
-                : "linear-gradient(90deg,#ef4444,#f97316)",
-            }}
-          />
-
-          <div className="p-6">
-            {/* Header */}
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div
-                  className="p-3 rounded-2xl"
-                  style={{
-                    background: isSaving ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)",
-                    color: isSaving ? "#10b981" : "#ef4444",
-                  }}
-                >
-                  {isSaving ? <FiTrendingDown size={22} /> : <FiAlertTriangle size={22} />}
-                </div>
-                <div>
-                  <h2 className="text-lg font-extrabold text-white">
-                    {isSaving ? "Why Switch to " + bestCompare.name + "?" : "Why Review Your Plans?"}
-                  </h2>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {isSaving
-                      ? `Compared against your current ${currentTariff} plan`
-                      : `${bestCompare.name} costs more — here's what to consider`}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowModal(false)}
-                className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <FiX size={18} />
-              </button>
-            </div>
-
-            {/* Key Numbers */}
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              <div className="rounded-2xl border border-white/8 bg-white/3 p-4 text-center">
-                <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Monthly</p>
-                <p
-                  className="text-2xl font-extrabold"
-                  style={{ color: isSaving ? "#10b981" : "#ef4444" }}
-                >
-                  {isSaving ? "-" : "+"}${monthlyDiff}
-                </p>
-                <p className="text-xs text-slate-500 mt-0.5">{isSaving ? "saving" : "extra cost"}</p>
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-white/3 p-4 text-center">
-                <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Annually</p>
-                <p
-                  className="text-2xl font-extrabold"
-                  style={{ color: isSaving ? "#10b981" : "#ef4444" }}
-                >
-                  {isSaving ? "-" : "+"}${annualAmount}
-                </p>
-                <p className="text-xs text-slate-500 mt-0.5">{isSaving ? "saved" : "extra"}</p>
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-white/3 p-4 text-center">
-                <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Rate</p>
-                <p className="text-2xl font-extrabold text-white">${bestCompare.rate}</p>
-                <p className="text-xs text-slate-500 mt-0.5">per kWh</p>
-              </div>
-            </div>
-
-            {/* Reasons list */}
-            <div className="space-y-3 mb-6">
-              {isSaving ? (
-                <>
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Reasons to Switch</p>
-                  <Reason icon={<FiDollarSign size={14} />} color="#10b981">
-                    Save <strong className="text-white">${monthlyDiff}/month</strong> — that's{" "}
-                    <strong className="text-white">${annualAmount}/year</strong> back in your pocket.
-                  </Reason>
-                  <Reason icon={<FiPercent size={14} />} color="#06b6d4">
-                    Lower rate of <strong className="text-white">${bestCompare.rate}/kWh</strong> vs your current{" "}
-                    <strong className="text-white">${currentRate}/kWh</strong> — a{" "}
-                    <strong className="text-white">
-                      {(((currentRate - bestCompare.rate) / currentRate) * 100).toFixed(1)}% reduction
-                    </strong>.
-                  </Reason>
-                  {betterMetrics.length > 0 && (
-                    <Reason icon={<FiArrowUpRight size={14} />} color="#a78bfa">
-                      Scores higher on{" "}
-                      <strong className="text-white">{betterMetrics.join(", ")}</strong> — better suited to your usage profile.
-                    </Reason>
-                  )}
-                  <Reason icon={<FiCalendar size={14} />} color="#f59e0b">
-                    Break-even is <strong className="text-white">immediate</strong> — savings start from day one with no lock-in penalty assumed.
-                  </Reason>
-                </>
-              ) : (
-                <>
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Things to Consider</p>
-                  <Reason icon={<FiAlertTriangle size={14} />} color="#ef4444">
-                    <strong className="text-white">{bestCompare.name}</strong> costs{" "}
-                    <strong className="text-red-400">${monthlyDiff}/month more</strong> than your current plan.
-                  </Reason>
-                  <Reason icon={<FiInfo size={14} />} color="#f59e0b">
-                    Your current <strong className="text-white">{currentTariff}</strong> at{" "}
-                    <strong className="text-white">${currentRate}/kWh</strong> may already be a strong deal — review if you need the features of the pricier plan.
-                  </Reason>
-                  {worseMetrics.length > 0 && (
-                    <Reason icon={<FiBarChart2 size={14} />} color="#a78bfa">
-                      <strong className="text-white">{bestCompare.name}</strong> scores higher on{" "}
-                      <strong className="text-white">{worseMetrics.join(", ")}</strong> — consider if those matter for your consumption pattern.
-                    </Reason>
-                  )}
-                  <Reason icon={<FiCalendar size={14} />} color="#64748b">
-                    Over a year you'd pay an extra{" "}
-                    <strong className="text-red-400">${annualAmount}</strong>. Only switch if the plan's features justify the premium.
-                  </Reason>
-                </>
-              )}
-            </div>
-
-            {/* CTA */}
-            <button
-              onClick={() => setShowModal(false)}
-              className="w-full py-3 rounded-2xl text-sm font-bold transition-all hover:scale-[1.02]"
-              style={{
-                background: isSaving
-                  ? "linear-gradient(135deg,#10b981,#06b6d4)"
-                  : "linear-gradient(135deg,#ef4444,#f97316)",
-                color: "#fff",
-              }}
-            >
-              {isSaving ? "Got it — I'll make the switch" : "Understood — I'll review my options"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const Reason = ({ icon, color, children }) => (
-    <div className="flex items-start gap-3 rounded-xl border border-white/6 bg-white/3 px-4 py-3">
-      <div className="mt-0.5 shrink-0" style={{ color }}>{icon}</div>
-      <p className="text-sm text-slate-300 leading-relaxed">{children}</p>
-    </div>
-  );
-
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
@@ -309,7 +135,6 @@ export default function TariffSimulator({ isDark = true }) {
 
   return (
     <div className="min-h-screen bg-[#060B18] text-white" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
-      {showModal && <SwitchModal />}
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
@@ -710,7 +535,6 @@ export default function TariffSimulator({ isDark = true }) {
               </div>
             </div>
             <button
-              onClick={() => setShowModal(true)}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all hover:scale-[1.03] shrink-0 ${
                 bestCompare.saving
                   ? "bg-emerald-500 hover:bg-emerald-400 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)]"
