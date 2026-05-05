@@ -176,7 +176,7 @@ export default function CustomerConsumption({
 
                 console.log("Type URL:", typeUrl);
                 console.log("E-Type URL:", eTypeUrl);
-                console.log("Pie filters - range:", range, "segment:", segment, "region:", region, "customerType:", customerType);
+                console.log("Pie filters - segment:", segment, "region:", region, "customerType:", customerType);
                 console.log("Built params - type:", segment.toLowerCase(), "region:", region.toLowerCase(), "e_type:", customerType.toLowerCase());
 
                 // Fetch type data (distribution by type - shows segment values like smb, industrial, residential)
@@ -851,7 +851,8 @@ export default function CustomerConsumption({
                 {/* BILLING CARD */}
                 <BillingCard
                     isDark={isDark}
-                    range={range}
+                    startDate={startDate}
+                    endDate={endDate}
                     segment={segment}
                     region={region}
                     customerType={customerType}

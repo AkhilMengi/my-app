@@ -4,7 +4,8 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 export default function BillingCard({
     isDark = true,
-    range = "Monthly",
+    startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    endDate = new Date().toISOString().split('T')[0],
     segment = "All",
     region = "All Regions",
     customerType = "All Types",
@@ -29,23 +30,18 @@ export default function BillingCard({
             setLoading(true);
             setError(null);
             try {
-                const rangeMap = {
-                    Daily: "daily",
-                    Weekly: "weekly",
-                    Monthly: "monthly",
-                    Yearly: "monthly",
-                };
-
-                let endpoint = `http://localhost:8000/api/consumption-chart/${rangeMap[range] || "monthly"}`;
+                const endpoint = `http://localhost:8000/api/consumption-chart`;
 
                 // Add query parameters for filters
                 const queryParams = new URLSearchParams();
+                queryParams.append("start_date", startDate);
+                queryParams.append("end_date", endDate);
                 if (segment !== "All") queryParams.append("type", segment.toLowerCase());
                 if (region !== "All Regions") queryParams.append("region", region.toLowerCase());
                 if (customerType !== "All Types") queryParams.append("e_type", customerType.toLowerCase());
                 if (source !== "Smart Meter") queryParams.append("source", source.toLowerCase());
 
-                const url = queryParams.toString() ? `${endpoint}?${queryParams.toString()}` : endpoint;
+                const url = `${endpoint}?${queryParams.toString()}`;
                 console.log("Fetching billing data from:", url);
 
                 const response = await fetch(url);
@@ -56,63 +52,41 @@ export default function BillingCard({
                 const apiData = await response.json();
                 
                 console.log("Billing API Response:", apiData);
-                console.log("Sample data item:", apiData.data[0]);
                 
                 // Transform API data to chart format
-                const transformedData = apiData.data.map((item, index) => {
-                    const billingValue = parseFloat(item.average_consumption);
-                    
-                    // Handle date formatting based on range type
-                    let dateLabel = "";
-                    
-                    if (range === "Daily") {
-                        const parsed = new Date(item.date);
-                        dateLabel = isNaN(parsed.getTime())
-                            ? item.date
-                            : parsed.toLocaleDateString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                            });
-                    } else if (range === "Weekly") {
-                        // For weekly data, use week numbers or parse the date
-                        const parsed = new Date(item.date);
-                        if (isNaN(parsed.getTime())) {
-                            dateLabel = `W${index + 1}`;
-                        } else {
-                            dateLabel = parsed.toLocaleDateString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                            });
-                        }
-                    } else if (range === "Monthly") {
-                        // For monthly data, use month-year format
-                        const parsed = new Date(item.date);
-                        dateLabel = isNaN(parsed.getTime())
-                            ? item.date || `M${index + 1}`
-                            : parsed.toLocaleDateString("en-US", {
-                                month: "short",
-                                year: "numeric",
-                            });
-                    } else {
-                        dateLabel = item.date || `Period ${index + 1}`;
-                    }
-                    
-                    return {
-                        date: dateLabel,
-                        billing: billingValue,
-                        fullDate: item.date,
-                    };
-                });
+                let transformedData = [];
+                
+                if (apiData.data && Array.isArray(apiData.data)) {
+                    transformedData = apiData.data.map((item, index) => {
+                        const billingValue = parseFloat(item.average_consumption);
+                        const dateLabel = item.date || `Period ${index + 1}`;
+                        
+                        return {
+                            date: dateLabel,
+                            billing: billingValue,
+                            fullDate: item.date,
+                        };
+                    });
+                } else if (apiData.averages && typeof apiData.averages === 'object') {
+                    // New format: { averages: { net_SP_01: value, net_SP_02: value, ... } }
+                    const values = Object.values(apiData.averages).map(v => parseFloat(v));
+                    const avgValue = values.reduce((a, b) => a + b, 0) / values.length;
+                    transformedData = [{
+                        date: `${startDate} to ${endDate}`,
+                        billing: avgValue,
+                        fullDate: endDate,
+                    }];
+                }
 
                 // Calculate statistics
-                const billingValues = apiData.data.map((item) => {
-                    const value = parseFloat(item.average_consumption);
+                const billingValues = transformedData.map((item) => {
+                    const value = parseFloat(item.billing);
                     return isNaN(value) ? 0 : value;
                 });
                 const avgBilling =
-                    billingValues.reduce((a, b) => a + b, 0) / billingValues.length;
-                const maxBilling = Math.max(...billingValues);
-                const minBilling = Math.min(...billingValues);
+                    billingValues.length > 0 ? billingValues.reduce((a, b) => a + b, 0) / billingValues.length : 0;
+                const maxBilling = billingValues.length > 0 ? Math.max(...billingValues) : 0;
+                const minBilling = billingValues.length > 0 ? Math.min(...billingValues) : 0;
                 const totalBilling = billingValues.reduce((a, b) => a + b, 0);
 
                 setStats({
@@ -133,7 +107,7 @@ export default function BillingCard({
         };
 
         fetchBillingData();
-    }, [range, segment, region, customerType, source]);
+    }, [startDate, endDate, segment, region, customerType, source]);
 
     const CustomTooltip = ({ active, payload, label }) => {
         if (active && payload && payload.length) {
@@ -199,7 +173,7 @@ export default function BillingCard({
                                     isDark ? "text-slate-400" : "text-slate-500"
                                 }`}
                             >
-                                {range || "Daily"} performance
+                                {startDate} to {endDate} performance
                             </p>
                         </div>
                     </div>
@@ -211,7 +185,7 @@ export default function BillingCard({
                         }`}
                     >
                         <FiTrendingUp className="w-3.5 h-3.5" />
-                        {range || "Daily"}
+                        {startDate}
                     </span>
                 </div>
 
@@ -432,7 +406,7 @@ export default function BillingCard({
                                 isDark ? "text-slate-400" : "text-slate-600"
                             }`}
                         >
-                            {billingData.length} data points • {range || "Daily"}{" "}
+                            {billingData.length} data points • {startDate} to {endDate}{" "}
                             view
                         </div>
                     </>
