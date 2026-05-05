@@ -35,16 +35,14 @@ export default function CustomerConsumption({
     isDark = true,
 }) {
     /* FILTERS */
-    // Set default date range: last 30 days
+    // Set default date range: from Jan 1, 2024
     const getDefaultEndDate = () => {
         const d = new Date();
         return d.toISOString().split('T')[0];
     };
     
     const getDefaultStartDate = () => {
-        const d = new Date();
-        d.setDate(d.getDate() - 30);
-        return d.toISOString().split('T')[0];
+        return "2024-01-01";
     };
 
     const [startDate, setStartDate] = useState(getDefaultStartDate());
@@ -74,6 +72,21 @@ export default function CustomerConsumption({
 
     /* API ENDPOINTS */
     const API_BASE = "http://localhost:8000/api/consumption-chart";
+
+    /* Helper function to convert meter index to time format */
+    const meterIndexToTime = (meter) => {
+        // Extract number from "net_SP_01" format
+        const match = meter.match(/sp_(\d+)/i);
+        if (!match) return meter;
+        
+        const spIndex = parseInt(match[1]); // 1 to 48
+        const totalMinutes = spIndex * 30; // Each interval is 30 minutes
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        
+        // Format as HH:MM
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    };
 
     /* FETCH DATA FROM API */
     useEffect(() => {
@@ -113,13 +126,25 @@ export default function CustomerConsumption({
                     }));
                 } else if (apiData.averages && typeof apiData.averages === 'object') {
                     // New format: { averages: { net_SP_01: value, net_SP_02: value, ... } }
-                    // Calculate average across all meters
-                    const values = Object.values(apiData.averages).map(v => parseFloat(v));
-                    const avgValue = values.reduce((a, b) => a + b, 0) / values.length;
-                    transformedData = [{
-                        date: `${startDate} to ${endDate}`,
-                        value: Math.round(avgValue * 100) / 100,
-                    }];
+                    // Show all 48 meter values individually with time labels
+                    const entries = Object.entries(apiData.averages);
+                    console.log("Total meters in response:", entries.length);
+                    console.log("First meter:", entries[0]);
+                    console.log("Last meter:", entries[entries.length - 1]);
+                    
+                    transformedData = entries.map(([meter, value]) => {
+                        const timeLabel = meterIndexToTime(meter);
+                        const dataPoint = {
+                            meter: meter,
+                            value: parseFloat(value),
+                            date: timeLabel,
+                        };
+                        // Log last few meters to see if they reach 24:00
+                        if (meter.includes('SP_46') || meter.includes('SP_47') || meter.includes('SP_48')) {
+                            console.log(`${meter} -> ${timeLabel}: ${value}`);
+                        }
+                        return dataPoint;
+                    });
                 }
 
                 setTrendData(transformedData);
@@ -238,6 +263,7 @@ export default function CustomerConsumption({
             payload &&
             payload.length
         ) {
+            const dataPoint = payload[0].payload; // Get the full data object
             return (
                 <div
                     className={`px-4 py-3 rounded-2xl border shadow-xl backdrop-blur-xl ${isDark
@@ -246,15 +272,15 @@ export default function CustomerConsumption({
                         }`}
                 >
                     <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-400 font-semibold">
-                        {label}
+                        {dataPoint.meter || dataPoint.date}
                     </p>
 
                     <p className="text-lg font-black mt-1">
-                        {payload[0].value}
+                        {dataPoint.value?.toFixed(2) || payload[0].value?.toFixed(2)}
                     </p>
 
                     <p className="text-[11px] text-slate-400">
-                        Consumption Units
+                        {dataPoint.date || label}
                     </p>
                 </div>
             );
@@ -320,7 +346,7 @@ export default function CustomerConsumption({
 
                         <button
                             onClick={() => {
-                                setStartDate(getDefaultStartDate());
+                                setStartDate("2024-01-01");
                                 setEndDate(getDefaultEndDate());
                                 setSegment("All");
                                 setRegion("All Regions");

@@ -4,7 +4,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 export default function BillingCard({
     isDark = true,
-    startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    startDate = "2024-01-01",
     endDate = new Date().toISOString().split('T')[0],
     segment = "All",
     region = "All Regions",
@@ -24,6 +24,21 @@ export default function BillingCard({
     const card = isDark
         ? "bg-white/5 border-white/10"
         : "bg-white border-slate-200";
+
+    /* Helper function to convert meter index to time format */
+    const meterIndexToTime = (meter) => {
+        // Extract number from "net_SP_01" format
+        const match = meter.match(/sp_(\d+)/i);
+        if (!match) return meter;
+        
+        const spIndex = parseInt(match[1]); // 1 to 48
+        const totalMinutes = spIndex * 30; // Each interval is 30 minutes
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        
+        // Format as HH:MM
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    };
 
     useEffect(() => {
         const fetchBillingData = async () => {
@@ -69,13 +84,22 @@ export default function BillingCard({
                     });
                 } else if (apiData.averages && typeof apiData.averages === 'object') {
                     // New format: { averages: { net_SP_01: value, net_SP_02: value, ... } }
-                    const values = Object.values(apiData.averages).map(v => parseFloat(v));
-                    const avgValue = values.reduce((a, b) => a + b, 0) / values.length;
-                    transformedData = [{
-                        date: `${startDate} to ${endDate}`,
-                        billing: avgValue,
-                        fullDate: endDate,
-                    }];
+                    // Show all 48 meter values individually with time labels
+                    const entries = Object.entries(apiData.averages);
+                    console.log("BillingCard - Total meters:", entries.length);
+                    console.log("BillingCard - Last meter:", entries[entries.length - 1]);
+                    
+                    transformedData = entries.map(([meter, value]) => {
+                        const timeLabel = meterIndexToTime(meter);
+                        if (meter.includes('SP_46') || meter.includes('SP_47') || meter.includes('SP_48')) {
+                            console.log(`BillingCard ${meter} -> ${timeLabel}: ${value}`);
+                        }
+                        return {
+                            date: timeLabel, // Convert to HH:MM format
+                            billing: parseFloat(value),
+                            fullDate: endDate,
+                        };
+                    });
                 }
 
                 // Calculate statistics
@@ -111,6 +135,7 @@ export default function BillingCard({
 
     const CustomTooltip = ({ active, payload, label }) => {
         if (active && payload && payload.length) {
+            const dataPoint = payload[0].payload; // Get the full data object
             return (
                 <div
                     className={`rounded-lg p-3 border shadow-xl ${
@@ -124,10 +149,10 @@ export default function BillingCard({
                             isDark ? "text-slate-200" : "text-slate-800"
                         }`}
                     >
-                        {payload[0].payload.fullDate}
+                        {dataPoint.date}
                     </p>
                     <p className="text-sm font-black text-emerald-400">
-                        ${payload[0].value.toFixed(2)}
+                        ${(dataPoint.billing || payload[0].value)?.toFixed(2)}
                     </p>
                 </div>
             );
