@@ -35,8 +35,20 @@ export default function CustomerConsumption({
     isDark = true,
 }) {
     /* FILTERS */
-    const [range, setRange] =
-        useState("Monthly");
+    // Set default date range: last 30 days
+    const getDefaultEndDate = () => {
+        const d = new Date();
+        return d.toISOString().split('T')[0];
+    };
+    
+    const getDefaultStartDate = () => {
+        const d = new Date();
+        d.setDate(d.getDate() - 30);
+        return d.toISOString().split('T')[0];
+    };
+
+    const [startDate, setStartDate] = useState(getDefaultStartDate());
+    const [endDate, setEndDate] = useState(getDefaultEndDate());
     const [segment, setSegment] =
         useState("All");
     const [region, setRegion] =
@@ -69,29 +81,21 @@ export default function CustomerConsumption({
             setLoading(true);
             setError(null);
             try {
-                let endpoint = "";
                 let transformedData = [];
 
-                const rangeMap = {
-                    Daily: "daily",
-                    Weekly: "weekly",
-                    Monthly: "monthly",
-                    Yearly: "monthly", // Fallback to monthly
-                };
-
-                endpoint = `${API_BASE}/${rangeMap[range] || "monthly"}`;
-
-                // Add query parameters for filters
+                // Add query parameters for filters including date range
                 const queryParams = new URLSearchParams();
+                queryParams.append("start_date", startDate);
+                queryParams.append("end_date", endDate);
                 if (segment !== "All") queryParams.append("type", segment.toLowerCase());
                 if (region !== "All Regions") queryParams.append("region", region.toLowerCase());
                 if (customerType !== "All Types") queryParams.append("e_type", customerType.toLowerCase());
                 if (source !== "Smart Meter") queryParams.append("source", source.toLowerCase());
 
-                const url = queryParams.toString() ? `${endpoint}?${queryParams.toString()}` : endpoint;
+                const url = `${API_BASE}?${queryParams.toString()}`;
 
                 console.log("Fetching trend data from:", url);
-                console.log("Filter values - segment:", segment, "region:", region, "customerType:", customerType, "source:", source);
+                console.log("Filter values - startDate:", startDate, "endDate:", endDate, "segment:", segment, "region:", region, "customerType:", customerType, "source:", source);
 
                 const response = await fetch(url);
                 if (!response.ok) {
@@ -101,29 +105,21 @@ export default function CustomerConsumption({
                 const apiData = await response.json();
 
                 // Transform API data to chart format
-                if (range === "Daily" && apiData.data) {
+                // Handle both formats: { data: [...] } and { averages: {...} }
+                if (apiData.data && Array.isArray(apiData.data)) {
                     transformedData = apiData.data.map((item) => ({
-                        month: item.date,
-                        value: parseFloat(item.average_consumption),
+                        date: item.date || item.month,
+                        value: parseFloat(item.average_consumption || item.value),
                     }));
-                } else if (range === "Weekly" && apiData.data) {
-                    transformedData = apiData.data.map((item, index) => ({
-                        month: `W${index + 1}`,
-                        value: parseFloat(item.average_consumption),
-                    }));
-                } else if (range === "Monthly" && apiData.data) {
-                    transformedData = apiData.data.map((item) => ({
-                        month: item.month || new Date(item.date).toLocaleString("default", { month: "short", year: "numeric" }),
-                        value: parseFloat(item.average_consumption),
-                    }));
-                } else if (range === "Yearly") {
-                    // Fallback to hardcoded yearly data since no API endpoint provided
-                    transformedData = [
-                        { month: "2021", value: 16200 },
-                        { month: "2022", value: 19100 },
-                        { month: "2023", value: 22500 },
-                        { month: "2024", value: 24700 },
-                    ];
+                } else if (apiData.averages && typeof apiData.averages === 'object') {
+                    // New format: { averages: { net_SP_01: value, net_SP_02: value, ... } }
+                    // Calculate average across all meters
+                    const values = Object.values(apiData.averages).map(v => parseFloat(v));
+                    const avgValue = values.reduce((a, b) => a + b, 0) / values.length;
+                    transformedData = [{
+                        date: `${startDate} to ${endDate}`,
+                        value: Math.round(avgValue * 100) / 100,
+                    }];
                 }
 
                 setTrendData(transformedData);
@@ -138,7 +134,7 @@ export default function CustomerConsumption({
         };
 
         fetchData();
-    }, [range, segment, region, customerType, source]);
+    }, [startDate, endDate, segment, region, customerType, source]);
 
     /* FETCH PIE CHART DATA FROM API */
     useEffect(() => {
@@ -220,7 +216,7 @@ export default function CustomerConsumption({
         };
 
         fetchPieData();
-    }, [range, segment, region, customerType]);
+    }, [startDate, endDate, segment, region, customerType]);
 
     const hourlyData = [
         { time: "6AM", load: 110 },
@@ -324,7 +320,8 @@ export default function CustomerConsumption({
 
                         <button
                             onClick={() => {
-                                setRange("Monthly");
+                                setStartDate(getDefaultStartDate());
+                                setEndDate(getDefaultEndDate());
                                 setSegment("All");
                                 setRegion("All Regions");
                                 setCustomerType("All Types");
@@ -338,18 +335,38 @@ export default function CustomerConsumption({
 
                     {/* Filters */}
                     <div className="relative grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                        {/* Date Range Pickers */}
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] uppercase tracking-[0.18em] font-semibold text-slate-400">
+                                Start Date
+                            </label>
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className={`w-full px-3 py-3 rounded-2xl text-sm border transition-all outline-none shadow-sm ${isDark
+                                    ? "bg-slate-900/80 border-white/10 focus:border-cyan-400 focus:bg-slate-900"
+                                    : "bg-white border-slate-200 focus:border-cyan-500"
+                                }`}
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] uppercase tracking-[0.18em] font-semibold text-slate-400">
+                                End Date
+                            </label>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className={`w-full px-3 py-3 rounded-2xl text-sm border transition-all outline-none shadow-sm ${isDark
+                                    ? "bg-slate-900/80 border-white/10 focus:border-cyan-400 focus:bg-slate-900"
+                                    : "bg-white border-slate-200 focus:border-cyan-500"
+                                }`}
+                            />
+                        </div>
+
                         {[
-                            {
-                                label: "Time Range",
-                                value: range,
-                                set: setRange,
-                                options: [
-                                    "Daily",
-                                    "Weekly",
-                                    "Monthly",
-                                    "Yearly",
-                                ],
-                            },
                             {
                                 label: "Segment",
                                 value: segment,
@@ -529,7 +546,7 @@ export default function CustomerConsumption({
                                     />
 
                                     <XAxis
-                                        dataKey="month"
+                                        dataKey="date"
                                         fontSize={11}
                                     />
                                     <YAxis fontSize={11} />
@@ -791,7 +808,7 @@ export default function CustomerConsumption({
                                     />
 
                                     <XAxis
-                                        dataKey="month"
+                                        dataKey="date"
                                         fontSize={11}
                                     />
 
