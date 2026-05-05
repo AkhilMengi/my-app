@@ -86,6 +86,9 @@ export default function PersonaComparison({ isDark = true }) {
 
                 const data = await response.json();
                 console.log("Comparison Data:", data);
+                console.log("Persona A Summary:", data.top20_summary?.[personaA]);
+                console.log("Persona B Summary:", data.top20_summary?.[personaB]);
+                console.log("Differences:", data.difference_a_minus_b);
                 setComparisonData(data);
             } catch (err) {
                 console.error("Error fetching comparison data:", err);
@@ -123,14 +126,28 @@ export default function PersonaComparison({ isDark = true }) {
 
         const diffs = comparisonData.difference_a_minus_b;
         return Object.entries(diffs).map(([key, value]) => {
-            const personaAval = comparisonData.top20_summary?.[personaA]?.[key] || 0;
-            const percentage = personaAval !== 0 ? ((value / personaAval) * 100).toFixed(2) : 0;
+            const numValue = typeof value === 'number' ? value : 0;
+            const personaAval = comparisonData.top20_summary?.[personaA]?.[key];
+            
+            // Calculate percentage - if personaAval is 0 or undefined, use difference as base
+            let percentage = "0.00";
+            if (personaAval && numValue !== 0) {
+                percentage = ((numValue / personaAval) * 100).toFixed(2);
+            } else if (!personaAval && numValue !== 0) {
+                // If no base value, show 0% as fallback
+                percentage = "0.00";
+            }
+
+            // Debug logging
+            if (key.includes('val') || key.includes('metric')) {
+                console.log(`${key}: personaAval=${personaAval}, numValue=${numValue}, percentage=${percentage}`);
+            }
 
             return {
                 name: key,
-                difference: value,
+                difference: numValue.toFixed(2),
                 percentage: percentage,
-                isPositive: value >= 0,
+                isPositive: numValue >= 0,
             };
         });
     };
@@ -151,11 +168,15 @@ export default function PersonaComparison({ isDark = true }) {
                     <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-400 font-semibold">
                         {label}
                     </p>
-                    {payload.map((entry, idx) => (
-                        <p key={idx} style={{ color: entry.color }} className="font-semibold">
-                            {entry.name}: {entry.value?.toFixed(2)}
-                        </p>
-                    ))}
+                    {payload.map((entry, idx) => {
+                        const entryName = entry?.name || entry?.dataKey || `Value ${idx + 1}`;
+                        const entryValue = entry?.value ?? 0;
+                        return (
+                            <p key={idx} style={{ color: entry?.color }} className="font-semibold">
+                                {entryName}: {typeof entryValue === 'number' ? entryValue.toFixed(2) : entryValue}
+                            </p>
+                        );
+                    })}
                 </div>
             );
         }
@@ -328,7 +349,9 @@ export default function PersonaComparison({ isDark = true }) {
 
                             {differenceData.length > 0 ? (
                                 <div className="space-y-3">
-                                    {differenceData.map((item, idx) => (
+                                    {differenceData.map((item, idx) => {
+                                        if (!item || !item.name) return null;
+                                        return (
                                         <div
                                             key={idx}
                                             className={`rounded-xl p-4 border flex justify-between items-center ${
@@ -339,14 +362,14 @@ export default function PersonaComparison({ isDark = true }) {
                                         >
                                             <div>
                                                 <h3 className="font-semibold text-sm mb-1">
-                                                    {item.name}
+                                                    {item.name || 'Unknown'}
                                                 </h3>
                                                 <div className="flex gap-4 text-xs">
                                                     <span className="text-slate-400">
-                                                        Absolute: {item.difference > 0 ? "+" : ""}{item.difference.toFixed(2)}
+                                                        Absolute: {parseFloat(item.difference || 0) > 0 ? "+" : ""}{item.difference || '0.00'}
                                                     </span>
                                                     <span className="text-slate-400">
-                                                        Percentage: {item.percentage > 0 ? "+" : ""}{item.percentage}%
+                                                        Percentage: {parseFloat(item.percentage || 0) > 0 ? "+" : ""}{item.percentage || '0.00'}%
                                                     </span>
                                                 </div>
                                             </div>
@@ -363,11 +386,12 @@ export default function PersonaComparison({ isDark = true }) {
                                                     <FiTrendingDown size={16} />
                                                 )}
                                                 <span className="font-bold">
-                                                    {item.percentage > 0 ? "+" : ""}{item.percentage}%
+                                                    {parseFloat(item.percentage || 0) > 0 ? "+" : ""}{item.percentage || '0.00'}%
                                                 </span>
                                             </div>
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             ) : (
                                 <div className="text-center text-slate-400 py-8">
