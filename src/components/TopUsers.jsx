@@ -28,16 +28,16 @@ export default function TopUsers({ isDark = true }) {
         : "bg-white border-slate-200";
 
     const colors = [
-        "#06b6d4", // cyan
-        "#8b5cf6", // purple
-        "#10b981", // emerald
-        "#f59e0b", // amber
-        "#ef4444", // red
-        "#ec4899", // pink
-        "#3b82f6", // blue
-        "#14b8a6", // teal
-        "#f97316", // orange
-        "#6366f1", // indigo
+        "#7dd3e8", // muted sky
+        "#b4a7d6", // muted lavender
+        "#86c9b0", // muted sage
+        "#f0c98a", // muted sand
+        "#f0a0a0", // muted rose
+        "#f4b8d0", // muted blush
+        "#93b8e8", // muted periwinkle
+        "#80cec8", // muted seafoam
+        "#f5c09a", // muted peach
+        "#a5aae8", // muted slate-blue
     ];
 
     useEffect(() => {
@@ -206,8 +206,9 @@ export default function TopUsers({ isDark = true }) {
                                         data={topUsersData}
                                         cx="50%"
                                         cy="50%"
-                                        outerRadius={120}
-                                        fill="#8884d8"
+                                        innerRadius={75}
+                                        outerRadius={130}
+                                        paddingAngle={3}
                                         dataKey="value"
                                     >
                                         {topUsersData.map((entry, index) => (
