@@ -1,23 +1,10 @@
 import { useState, useEffect } from "react";
 import {
-    FiBarChart2,
     FiArrowRight,
     FiTrendingUp,
     FiTrendingDown,
     FiZap,
-    FiUsers,
 } from "react-icons/fi";
-import {
-    ResponsiveContainer,
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    Legend,
-    Cell,
-} from "recharts";
 
 export default function PersonaComparison({ isDark = true }) {
     const [personaA, setPersonaA] = useState("Persona A");
@@ -26,10 +13,6 @@ export default function PersonaComparison({ isDark = true }) {
     const [comparisonData, setComparisonData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-
-    const card = isDark
-        ? "bg-white/5 border-white/10"
-        : "bg-white border-slate-200";
 
     const colors = {
         personaA: "#06b6d4",
@@ -101,124 +84,73 @@ export default function PersonaComparison({ isDark = true }) {
         fetchComparisonData();
     }, [personaA, personaB]);
 
-    // Transform comparison data for bar chart
-    const getChartData = () => {
-        if (!comparisonData?.top20_summary) return [];
+    // Get the main metric values (val1 and val2)
+    const getMainValues = () => {
+        if (!comparisonData?.top20_summary) return null;
 
         const summary = comparisonData.top20_summary;
         const personaAData = summary[personaA] || {};
         const personaBData = summary[personaB] || {};
 
-        const keys = Array.from(
-            new Set([...Object.keys(personaAData), ...Object.keys(personaBData)])
-        ).filter(key => typeof personaAData[key] === 'number' || typeof personaBData[key] === 'number');
+        // Get first numeric value from each persona
+        const val1 = Object.values(personaAData).find(v => typeof v === 'number') || 0;
+        const val2 = Object.values(personaBData).find(v => typeof v === 'number') || 0;
 
-        return keys.slice(0, 10).map(key => ({
-            name: key,
-            [personaA]: personaAData[key] || 0,
-            [personaB]: personaBData[key] || 0,
-        }));
+        // Calculate difference
+        const difference = val2 - val1;
+        const percentage = val1 !== 0 ? ((difference / val1) * 100).toFixed(2) : "0.00";
+
+        return {
+            val1: typeof val1 === 'number' ? val1.toFixed(2) : '0.00',
+            val2: typeof val2 === 'number' ? val2.toFixed(2) : '0.00',
+            difference: difference.toFixed(2),
+            percentage: percentage,
+            isPositive: difference >= 0,
+        };
     };
 
-    // Get difference data
-    const getDifferenceData = () => {
-        if (!comparisonData?.difference_a_minus_b) return [];
-
-        const diffs = comparisonData.difference_a_minus_b;
-        return Object.entries(diffs).map(([key, value]) => {
-            const numValue = typeof value === 'number' ? value : 0;
-            const personaAval = comparisonData.top20_summary?.[personaA]?.[key];
-            
-            // Calculate percentage - if personaAval is 0 or undefined, use difference as base
-            let percentage = "0.00";
-            if (personaAval && numValue !== 0) {
-                percentage = ((numValue / personaAval) * 100).toFixed(2);
-            } else if (!personaAval && numValue !== 0) {
-                // If no base value, show 0% as fallback
-                percentage = "0.00";
-            }
-
-            // Debug logging
-            if (key.includes('val') || key.includes('metric')) {
-                console.log(`${key}: personaAval=${personaAval}, numValue=${numValue}, percentage=${percentage}`);
-            }
-
-            return {
-                name: key,
-                difference: numValue.toFixed(2),
-                percentage: percentage,
-                isPositive: numValue >= 0,
-            };
-        });
-    };
-
-    const chartData = getChartData();
-    const differenceData = getDifferenceData();
-
-    const CustomTooltip = ({ active, payload, label }) => {
-        if (active && payload && payload.length) {
-            return (
-                <div
-                    className={`px-4 py-3 rounded-2xl border shadow-xl backdrop-blur-xl ${
-                        isDark
-                            ? "bg-slate-900/95 border-white/10 text-white"
-                            : "bg-white/95 border-slate-200 text-slate-900"
-                    }`}
-                >
-                    <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-400 font-semibold">
-                        {label}
-                    </p>
-                    {payload.map((entry, idx) => {
-                        const entryName = entry?.name || entry?.dataKey || `Value ${idx + 1}`;
-                        const entryValue = entry?.value ?? 0;
-                        return (
-                            <p key={idx} style={{ color: entry?.color }} className="font-semibold">
-                                {entryName}: {typeof entryValue === 'number' ? entryValue.toFixed(2) : entryValue}
-                            </p>
-                        );
-                    })}
-                </div>
-            );
-        }
-        return null;
-    };
+    const mainValues = getMainValues();
 
     return (
         <div
-            className={`min-h-screen p-4 sm:p-5 ${
+            className={`min-h-screen p-6 ${
                 isDark
-                    ? "bg-slate-950 text-white"
-                    : "bg-slate-50 text-slate-900"
+                    ? "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white"
+                    : "bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900"
             }`}
         >
-            <div className="max-w-7xl mx-auto space-y-4">
+            <div className="max-w-6xl mx-auto space-y-8">
                 {/* HEADER */}
-                <div className="flex flex-wrap justify-between gap-2 items-center">
-                    <div>
-                        <h1 className="text-2xl sm:text-3xl font-black">
-                            Persona Comparison
-                        </h1>
-                        <p className="text-xs text-slate-400 mt-1">
-                            Compare metrics between two personas
-                        </p>
-                    </div>
+                <div>
+                    <h1 className="text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-emerald-400 mb-2">
+                        Persona Comparison
+                    </h1>
+                    <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                        Compare two personas at a glance
+                    </p>
                 </div>
 
-                {/* SELECTORS */}
-                <div className={`rounded-2xl border p-5 ${card}`}>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                        {/* Persona A Selector */}
-                        <div className="space-y-2">
-                            <label className="text-xs uppercase tracking-[0.18em] font-semibold text-slate-400">
+                {/* PERSONA SELECTORS */}
+                <div
+                    className={`rounded-3xl border backdrop-blur-sm p-6 ${
+                        isDark
+                            ? "bg-white/5 border-white/10 shadow-2xl"
+                            : "bg-white/50 border-white shadow-lg"
+                    }`}
+                >
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                        {/* Persona A */}
+                        <div className="space-y-3">
+                            <label className="text-xs uppercase tracking-[0.2em] font-bold text-cyan-400">
                                 Persona A
                             </label>
                             <select
                                 value={personaA}
                                 onChange={(e) => setPersonaA(e.target.value)}
-                                className={`w-full px-3 py-3 rounded-2xl text-sm border transition-all outline-none shadow-sm ${
+                                className={`w-full px-4 py-3 rounded-2xl text-sm font-medium border transition-all outline-none ${
                                     isDark
-                                        ? "bg-slate-900/80 border-white/10 focus:border-cyan-400 focus:bg-slate-900"
-                                        : "bg-white border-slate-200 focus:border-cyan-500"
+                                        ? "bg-slate-900/80 border-cyan-500/30 focus:border-cyan-400 focus:bg-slate-900 focus:shadow-lg focus:shadow-cyan-400/20"
+                                        : "bg-white border-cyan-300 focus:border-cyan-500 focus:shadow-lg"
                                 }`}
                             >
                                 {allPersonas.map((persona) => (
@@ -229,26 +161,25 @@ export default function PersonaComparison({ isDark = true }) {
                             </select>
                         </div>
 
-                        {/* Arrow */}
+                        {/* Arrow Divider */}
                         <div className="flex justify-center">
-                            <FiArrowRight
-                                size={24}
-                                className={isDark ? "text-cyan-400" : "text-cyan-600"}
-                            />
+                            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-emerald-500">
+                                <FiArrowRight size={20} className="text-white" />
+                            </div>
                         </div>
 
-                        {/* Persona B Selector */}
-                        <div className="space-y-2">
-                            <label className="text-xs uppercase tracking-[0.18em] font-semibold text-slate-400">
+                        {/* Persona B */}
+                        <div className="space-y-3">
+                            <label className="text-xs uppercase tracking-[0.2em] font-bold text-emerald-400">
                                 Persona B
                             </label>
                             <select
                                 value={personaB}
                                 onChange={(e) => setPersonaB(e.target.value)}
-                                className={`w-full px-3 py-3 rounded-2xl text-sm border transition-all outline-none shadow-sm ${
+                                className={`w-full px-4 py-3 rounded-2xl text-sm font-medium border transition-all outline-none ${
                                     isDark
-                                        ? "bg-slate-900/80 border-white/10 focus:border-cyan-400 focus:bg-slate-900"
-                                        : "bg-white border-slate-200 focus:border-cyan-500"
+                                        ? "bg-slate-900/80 border-emerald-500/30 focus:border-emerald-400 focus:bg-slate-900 focus:shadow-lg focus:shadow-emerald-400/20"
+                                        : "bg-white border-emerald-300 focus:border-emerald-500 focus:shadow-lg"
                                 }`}
                             >
                                 {allPersonas.map((persona) => (
@@ -261,145 +192,159 @@ export default function PersonaComparison({ isDark = true }) {
                     </div>
                 </div>
 
-                {/* MESSAGE */}
+                {/* ERROR STATE */}
                 {personaA === personaB && (
                     <div
-                        className={`rounded-xl p-4 text-center text-sm font-medium ${
+                        className={`rounded-2xl p-4 text-center text-sm font-medium ${
                             isDark
-                                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                                : "bg-amber-50 text-amber-600 border border-amber-200"
+                                ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
+                                : "bg-amber-50 text-amber-700 border border-amber-200"
                         }`}
                     >
-                        Please select two different personas to compare
+                        Please select two different personas
                     </div>
                 )}
 
+                {/* LOADING STATE */}
                 {loading && (
-                    <div className="flex items-center justify-center py-12">
-                        <div
-                            className={`animate-spin rounded-full h-8 w-8 border-2 border-transparent ${
-                                isDark
-                                    ? "border-t-cyan-400 border-r-cyan-400"
-                                    : "border-t-cyan-600 border-r-cyan-600"
-                            }`}
-                        ></div>
+                    <div className="flex items-center justify-center py-20">
+                        <div className="flex flex-col items-center gap-4">
+                            <div
+                                className={`animate-spin rounded-full h-12 w-12 border-2 border-transparent ${
+                                    isDark
+                                        ? "border-t-cyan-400 border-r-emerald-400"
+                                        : "border-t-cyan-500 border-r-emerald-500"
+                                }`}
+                            ></div>
+                            <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                                Comparing personas...
+                            </p>
+                        </div>
                     </div>
                 )}
 
+                {/* ERROR STATE */}
                 {error && (
-                    <div className="text-red-400 text-sm p-4 text-center rounded-xl border border-red-500/20 bg-red-500/10">
+                    <div className={`rounded-2xl p-4 text-center text-sm font-medium ${
+                        isDark
+                            ? "bg-red-500/10 text-red-400 border border-red-500/30"
+                            : "bg-red-50 text-red-700 border border-red-200"
+                    }`}>
                         Error: {error}
                     </div>
                 )}
 
-                {comparisonData && personaA !== personaB && (
-                    <>
-                        {/* COMPARISON CHART */}
-                        <div className={`rounded-2xl border p-4 ${card}`}>
-                            <div className="flex justify-between mb-4">
-                                <h2 className="font-bold text-sm">
-                                    Metrics Comparison
-                                </h2>
-                                <span className="text-xs flex items-center gap-1 text-emerald-400">
-                                    <FiZap size={12} />
-                                    Live
-                                </span>
+                {/* COMPARISON DISPLAY */}
+                {comparisonData && personaA !== personaB && mainValues && (
+                    <div className="space-y-8">
+                        {/* VALUES COMPARISON */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {/* Persona A Value */}
+                            <div
+                                className={`rounded-3xl border backdrop-blur-sm p-8 text-center transition-all hover:shadow-2xl ${
+                                    isDark
+                                        ? "bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 border-cyan-500/30 shadow-xl shadow-cyan-500/10"
+                                        : "bg-gradient-to-br from-cyan-50 to-cyan-100 border-cyan-300 shadow-lg"
+                                }`}
+                            >
+                                <p className="text-xs uppercase tracking-[0.2em] font-bold text-cyan-400 mb-4">
+                                    {personaA}
+                                </p>
+                                <div className="space-y-2">
+                                    <p className="text-5xl font-black text-cyan-400">
+                                        {mainValues.val1}
+                                    </p>
+                                    <div className="flex items-center justify-center gap-2">
+                                        <FiZap size={16} className="text-cyan-400" />
+                                        <span className="text-xs text-slate-400">Primary Value</span>
+                                    </div>
+                                </div>
                             </div>
 
-                            {chartData.length > 0 ? (
-                                <ResponsiveContainer width="100%" height={300}>
-                                    <BarChart data={chartData}>
-                                        <CartesianGrid
-                                            strokeDasharray="3 3"
-                                            opacity={0.1}
-                                        />
-                                        <XAxis
-                                            dataKey="name"
-                                            tick={{ fontSize: 12 }}
-                                        />
-                                        <YAxis tick={{ fontSize: 12 }} />
-                                        <Tooltip
-                                            content={<CustomTooltip />}
-                                        />
-                                        <Legend />
-                                        <Bar
-                                            dataKey={personaA}
-                                            fill={colors.personaA}
-                                            radius={[8, 8, 0, 0]}
-                                        />
-                                        <Bar
-                                            dataKey={personaB}
-                                            fill={colors.personaB}
-                                            radius={[8, 8, 0, 0]}
-                                        />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <div className="text-center text-slate-400 py-8">
-                                    No comparison data available
+                            {/* Difference Badge */}
+                            <div className="flex items-center justify-center">
+                                <div
+                                    className={`rounded-2xl border backdrop-blur-sm p-6 text-center ${
+                                        mainValues.isPositive
+                                            ? isDark
+                                                ? "bg-emerald-500/10 border-emerald-500/30"
+                                                : "bg-emerald-50 border-emerald-300"
+                                            : isDark
+                                            ? "bg-red-500/10 border-red-500/30"
+                                            : "bg-red-50 border-red-300"
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-center gap-2 mb-3">
+                                        {mainValues.isPositive ? (
+                                            <FiTrendingUp className={mainValues.isPositive ? "text-emerald-400" : "text-red-400"} />
+                                        ) : (
+                                            <FiTrendingDown className={mainValues.isPositive ? "text-emerald-400" : "text-red-400"} />
+                                        )}
+                                    </div>
+                                    <p className={`text-3xl font-black ${mainValues.isPositive ? "text-emerald-400" : "text-red-400"}`}>
+                                        {parseFloat(mainValues.percentage) > 0 ? "+" : ""}{mainValues.percentage}%
+                                    </p>
+                                    <p className="text-xs text-slate-400 mt-2">
+                                        {parseFloat(mainValues.difference) > 0 ? "+" : ""}{mainValues.difference}
+                                    </p>
                                 </div>
-                            )}
+                            </div>
+
+                            {/* Persona B Value */}
+                            <div
+                                className={`rounded-3xl border backdrop-blur-sm p-8 text-center transition-all hover:shadow-2xl ${
+                                    isDark
+                                        ? "bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/30 shadow-xl shadow-emerald-500/10"
+                                        : "bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-300 shadow-lg"
+                                }`}
+                            >
+                                <p className="text-xs uppercase tracking-[0.2em] font-bold text-emerald-400 mb-4">
+                                    {personaB}
+                                </p>
+                                <div className="space-y-2">
+                                    <p className="text-5xl font-black text-emerald-400">
+                                        {mainValues.val2}
+                                    </p>
+                                    <div className="flex items-center justify-center gap-2">
+                                        <FiZap size={16} className="text-emerald-400" />
+                                        <span className="text-xs text-slate-400">Primary Value</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        {/* DIFFERENCES */}
-                        <div className={`rounded-2xl border p-4 ${card}`}>
-                            <h2 className="font-bold text-sm mb-4">
-                                {personaA} vs {personaB} - Difference
-                            </h2>
-
-                            {differenceData.length > 0 ? (
-                                <div className="space-y-3">
-                                    {differenceData.map((item, idx) => {
-                                        if (!item || !item.name) return null;
-                                        return (
-                                        <div
-                                            key={idx}
-                                            className={`rounded-xl p-4 border flex justify-between items-center ${
-                                                isDark
-                                                    ? "bg-white/5 border-white/10"
-                                                    : "bg-white/50 border-slate-200"
-                                            }`}
-                                        >
-                                            <div>
-                                                <h3 className="font-semibold text-sm mb-1">
-                                                    {item.name || 'Unknown'}
-                                                </h3>
-                                                <div className="flex gap-4 text-xs">
-                                                    <span className="text-slate-400">
-                                                        Absolute: {parseFloat(item.difference || 0) > 0 ? "+" : ""}{item.difference || '0.00'}
-                                                    </span>
-                                                    <span className="text-slate-400">
-                                                        Percentage: {parseFloat(item.percentage || 0) > 0 ? "+" : ""}{item.percentage || '0.00'}%
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div
-                                                className={`flex items-center gap-2 ${
-                                                    item.isPositive
-                                                        ? "text-emerald-400"
-                                                        : "text-red-400"
-                                                }`}
-                                            >
-                                                {item.isPositive ? (
-                                                    <FiTrendingUp size={16} />
-                                                ) : (
-                                                    <FiTrendingDown size={16} />
-                                                )}
-                                                <span className="font-bold">
-                                                    {parseFloat(item.percentage || 0) > 0 ? "+" : ""}{item.percentage || '0.00'}%
-                                                </span>
-                                            </div>
-                                        </div>
-                                        );
-                                    })}
+                        {/* STATS FOOTER */}
+                        <div
+                            className={`rounded-2xl border backdrop-blur-sm p-6 ${
+                                isDark
+                                    ? "bg-white/5 border-white/10"
+                                    : "bg-white/50 border-white"
+                            }`}
+                        >
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                                <div>
+                                    <p className="text-xs text-slate-400 uppercase tracking-[0.1em]">Diff</p>
+                                    <p className={`text-lg font-bold mt-1 ${mainValues.isPositive ? "text-emerald-400" : "text-red-400"}`}>
+                                        {mainValues.difference}
+                                    </p>
                                 </div>
-                            ) : (
-                                <div className="text-center text-slate-400 py-8">
-                                    No difference data available
+                                <div>
+                                    <p className="text-xs text-slate-400 uppercase tracking-[0.1em]">Change</p>
+                                    <p className={`text-lg font-bold mt-1 ${mainValues.isPositive ? "text-emerald-400" : "text-red-400"}`}>
+                                        {mainValues.percentage}%
+                                    </p>
                                 </div>
-                            )}
+                                <div>
+                                    <p className="text-xs text-slate-400 uppercase tracking-[0.1em]">Val1</p>
+                                    <p className="text-lg font-bold text-cyan-400 mt-1">{mainValues.val1}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-slate-400 uppercase tracking-[0.1em]">Val2</p>
+                                    <p className="text-lg font-bold text-emerald-400 mt-1">{mainValues.val2}</p>
+                                </div>
+                            </div>
                         </div>
-                    </>
+                    </div>
                 )}
             </div>
         </div>
